@@ -229,6 +229,9 @@ def evaluate_risk(
             "self_exam_guide": z["self_exam_guide"],
             "organ_function": z.get("organ_function"),
             "why_exam_needed": z.get("why_exam_needed"),
+            "hrp_risk_name": z.get("hrp_risk_name"),
+            "reference_title": z.get("reference_title"),
+            "reference_url": z.get("reference_url"),
             "_reasons": [],
         }
 
@@ -303,6 +306,9 @@ def evaluate_risk(
                 self_exam_guide=item["self_exam_guide"],
                 organ_function=item["organ_function"],
                 why_exam_needed=item["why_exam_needed"],
+                hrp_risk_name=item["hrp_risk_name"],
+                reference_title=item["reference_title"],
+                reference_url=item["reference_url"],
             )
         )
 
@@ -405,4 +411,5 @@ def evaluate_risk(
         trend_alerts=trend_alerts,
         body_zones=body_zones,
         latest_vision_summary=latest_vision_summary,
+        official_references=rules.get("official_resources", []),
     )

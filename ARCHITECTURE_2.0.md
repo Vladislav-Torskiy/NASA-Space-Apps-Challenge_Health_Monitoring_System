@@ -484,3 +484,17 @@ flowchart LR
 - **Точка входу для Ролі 1 (Frontend):** підключайте `VITE_API_BASE_URL=http://localhost:8000` — CORS уже налаштований для `http://localhost:5173` та `http://127.0.0.1:5173`.
 - **Точка входу для Ролі 3 (AI/CV):** розширюйте функції `_analyze_*_opencv` / `_try_gemini_vision` у `backend/app/services/vision_service.py` та `compute_trends` у `backend/app/services/risk_engine.py`, не ламаючи схеми у `backend/app/schemas.py`.
 - **Точка входу для Ролі 4 (Data/Medical Content):** редагуйте тексти, пороги й 30-денну історію безпосередньо в `data/nasa_hrp_rules.json` та `data/seed_30days.json` без правки Python-коду.
+
+---
+
+## 9. Офіційні ресурси NASA Space Apps Challenge (інтегровані у відповіді API)
+
+Довідник [data/nasa_hrp_rules.json](data/nasa_hrp_rules.json) прив'язує кожну з 8 зон тіла (`hrp_risk_name`, `reference_title`, `reference_url`) та блок `official_references` у `/api/evaluate/risk` до 5 першоджерел із вкладки `Resources` челенджу:
+
+| Агентство | Назва ресурсу | URL | Як використано в ASTRA-Med |
+| :--- | :--- | :--- | :--- |
+| **NASA HRP** | 5 Hazards of Human Spaceflight | `https://www.nasa.gov/hrp/hazards/` | Базові категорії ризиків (`Space Radiation`, `Isolation`, `Distance`, `Gravity`, `Closed Environments`) та пороги по 4 середовищах |
+| **NASA HRP** | Risks of Human Spaceflight | `https://www.nasa.gov/hrp/risks/` | Мапінг офіційних ризиків (`Cardiovascular Adaptation`, `SANS`, `Altered Immune Responses / viral rashes`, `Host-Microorganism`, `Inadequate Sleep`) на 8 зон тіла |
+| **NASA HRP** | Ongoing HRP Research in Space | `https://www.nasa.gov/hrp/ongoing-hrp-research/` | Протоколи *Artemis II Standard Measures*, профілактика SANS, ниркові/метаболічні чекіни |
+| **CSA** | Monitoring Radiation for Astronaut Health | `https://www.asc-csa.gc.ca/eng/news/articles/2026/2026-02-26-monitoring-radiation-astronaut-health.asp` | Контекст дозиметрії (`mSv`, CANS / Radi-N / EVARM), імунно-радіаційний моніторинг та сценарій `solar_flare` |
+| **CSA** | Why Do We Conduct Science Experiments in Space? | `https://www.asc-csa.gc.ca/eng/iss/science/why-do-we-conduct-science-experiments-in-space.asp` | Пояснення втрати кісткової маси й м'язів у 0g та рутина ARED (`Bone Guardian`) |

@@ -37,6 +37,7 @@ def test_health_and_dashboard_baseline(client: TestClient) -> None:
     assert dash["gamification"]["readiness_score"] == 84
     assert len(dash["body_zones"]) == 8
     assert all(z["status"] == "nominal" for z in dash["body_zones"])
+    assert all(z.get("hrp_risk_name") and z.get("reference_url") for z in dash["body_zones"])
     assert dash["latest_metrics"]["heart_rate"] == 68
     assert dash["latest_metrics"]["radiation_msv_total"] == pytest.approx(14.2, abs=0.05)
     assert len(dash["routine_tasks"]) == 4
@@ -214,3 +215,7 @@ def test_vision_modes_and_evaluate_risk(client: TestClient) -> None:
     assert eval_resp.status_code == 200
     eval_data = eval_resp.json()
     assert eval_data["latest_vision_summary"] is not None
+    assert len(eval_data["official_references"]) == 5
+    urls = {ref["url"] for ref in eval_data["official_references"]}
+    assert "https://www.nasa.gov/hrp/hazards/" in urls
+    assert "https://www.nasa.gov/hrp/risks/" in urls

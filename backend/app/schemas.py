@@ -51,6 +51,9 @@ class BodyZoneStatus(BaseModel):
     self_exam_guide: str
     organ_function: str | None = None
     why_exam_needed: str | None = None
+    hrp_risk_name: str | None = None
+    reference_title: str | None = None
+    reference_url: str | None = None
 
 
 class LatestMetrics(BaseModel):
@@ -151,6 +154,7 @@ class RiskEvaluationResponse(BaseModel):
     trend_alerts: list[TrendAlert]
     body_zones: list[BodyZoneStatus]
     latest_vision_summary: str | None = None
+    official_references: list[dict[str, str]] = Field(default_factory=list)
 
 
 class MetricCreateResponse(BaseModel):

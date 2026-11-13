@@ -1,12 +1,47 @@
 {
   "metadata": {
-    "version": "1.0.0",
+    "version": "1.1.0",
+    "challenge_url": "https://www.spaceappschallenge.org/2026/challenges/health-monitoring-software/?tab=resources",
     "sources": [
-      "NASA Human Research Program (HRP) - Five Hazards of Human Spaceflight",
-      "Canadian Space Agency (CSA) - Space Radiation & Autonomous Healthcare",
-      "NASA OSDR / RadLab Reference Ranges"
+      "NASA Human Research Program (HRP) - 5 Hazards of Human Spaceflight",
+      "NASA Human Research Program (HRP) - Risks of Human Spaceflight",
+      "NASA Human Research Program (HRP) - Ongoing HRP Research in Space",
+      "Canadian Space Agency (CSA) - Monitoring Radiation for Astronaut Health",
+      "Canadian Space Agency (CSA) - Why Do We Conduct Science Experiments in Space?"
     ]
   },
+  "official_resources": [
+    {
+      "agency": "NASA HRP",
+      "title": "5 Hazards of Human Spaceflight",
+      "url": "https://www.nasa.gov/hrp/hazards/",
+      "key_takeaway": "Maps the five interconnected hazards of deep-space travel: Space Radiation, Isolation and Confinement, Distance from Earth, Gravity Fields, and Hostile Closed Environments."
+    },
+    {
+      "agency": "NASA HRP",
+      "title": "Risks of Human Spaceflight",
+      "url": "https://www.nasa.gov/hrp/risks/",
+      "key_takeaway": "Catalogs specific clinical risks including SANS, Altered Immune System Responses (latent virus reactivation & rashes), Cardiovascular Adaptation, Bone Changes, Host-Microorganism Interactions, and Inadequate Sleep."
+    },
+    {
+      "agency": "NASA HRP",
+      "title": "Ongoing HRP Research in Space",
+      "url": "https://www.nasa.gov/hrp/ongoing-hrp-research/",
+      "key_takeaway": "Covers Artemis II Standard Measures (activity, sleep, blood/saliva immune biomarkers), SANS thigh-cuff & B-vitamin mitigation trials, spinal scans for bone/muscle loss, and commercial telemedicine testing."
+    },
+    {
+      "agency": "CSA",
+      "title": "Monitoring Radiation for Astronaut Health",
+      "url": "https://www.asc-csa.gc.ca/eng/news/articles/2026/2026-02-26-monitoring-radiation-astronaut-health.asp",
+      "key_takeaway": "Highlights Canadian active radiation dosimetry (CANS neutron spectrometer, EVARM, MOSFET, Radi-N) to track cosmic and solar particle radiation exposure on Artemis/Moon/Mars missions."
+    },
+    {
+      "agency": "CSA",
+      "title": "Why Do We Conduct Science Experiments in Space?",
+      "url": "https://www.asc-csa.gc.ca/eng/iss/science/why-do-we-conduct-science-experiments-in-space.asp",
+      "key_takeaway": "Explains how microgravity accelerates bone density loss, muscle atrophy, and cardiovascular changes aboard ISS, driving both crew countermeasures and Earth remote-health innovations."
+    }
+  ],
   "environments": {
     "spacecraft": {
       "label": "Spacecraft Transit",
@@ -84,21 +119,27 @@
       "zone_id": "heart_vessels",
       "layer": "cardiovascular",
       "label": "Heart & Vessels",
+      "hrp_risk_name": "Risk of Cardiovascular Adaptation",
+      "reference_title": "NASA HRP — Risks of Human Spaceflight",
+      "reference_url": "https://www.nasa.gov/hrp/risks/",
       "organ_function": "Maintains systemic perfusion and blood pressure regulation under altered gravity.",
       "default_summary": "Resting HR and BP within microgravity baseline.",
       "space_hazard": "Gravity Fields (cephalad fluid shift) & Hostile Closed Environments (CO2 load)",
-      "why_exam_needed": "Microgravity shifts fluid toward the thorax and head, shrinking plasma volume and risking orthostatic intolerance.",
-      "self_exam_guide": "Sit still for 3 minutes, wrap cuff at heart level, press Measure, and log systolic/diastolic values.",
+      "why_exam_needed": "Weightlessness alters blood circulation and how the heart and blood vessels function, shrinking plasma volume and increasing cardiovascular adaptation risk.",
+      "self_exam_guide": "Sit still for 3 minutes, wrap cuff at heart level, press Measure, and log systolic/diastolic values per Artemis II Standard Measures.",
       "related_metrics": ["heart_rate", "systolic_bp", "diastolic_bp"]
     },
     {
       "zone_id": "lungs_airway",
       "layer": "cardiovascular",
       "label": "Lungs / Airway",
+      "hrp_risk_name": "Risk of Host-Microorganism Interactions & Closed-Habitat CO2",
+      "reference_title": "NASA HRP — 5 Hazards of Human Spaceflight",
+      "reference_url": "https://www.nasa.gov/hrp/hazards/",
       "organ_function": "Gas exchange (O2 intake and CO2 clearance) inside pressurized spacecraft/habitat atmosphere.",
       "default_summary": "Airway and cabin CO2 response remain stable.",
-      "space_hazard": "Hostile Closed Environments (CO2 scrubber drift, airborne particulates)",
-      "why_exam_needed": "Elevated cabin CO2 or pulmonary fluid shift can cause headaches, tachypnea, and B-line artifacts on lung ultrasound.",
+      "space_hazard": "Hostile Closed Environments (CO2 scrubber drift, airborne particulates, hypoxia risk during EVA pre-breathe)",
+      "why_exam_needed": "Elevated cabin CO2 or pulmonary fluid shift inside a closed spacecraft ecosystem can trigger headaches, tachypnea, and B-line artifacts on lung ultrasound.",
       "self_exam_guide": "Check cabin CO2 readout, perform a 4-zone anterior chest ultrasound sweep if short of breath, and log resting HR.",
       "related_metrics": ["heart_rate", "temperature_c"]
     },
@@ -106,32 +147,41 @@
       "zone_id": "bones_spine",
       "layer": "musculoskeletal",
       "label": "Bones & Spine",
+      "hrp_risk_name": "Risk of Spaceflight-Induced Bone Changes",
+      "reference_title": "CSA — Why Do We Conduct Science Experiments in Space?",
+      "reference_url": "https://www.asc-csa.gc.ca/eng/iss/science/why-do-we-conduct-science-experiments-in-space.asp",
       "organ_function": "Structural support, calcium homeostasis, and intervertebral spacing.",
       "default_summary": "ARED resistive countermeasures on track with no acute metabolic strain.",
-      "space_hazard": "Gravity Fields (bone mineral density loss and spinal elongation in 0g)",
-      "why_exam_needed": "Astronauts lose 1-1.5% bone mineral density per month in microgravity without resistive exercise and metabolic stability.",
-      "self_exam_guide": "Complete daily 30-min ARED resistive routine, note lower back tension, and maintain morning glucose checks.",
+      "space_hazard": "Gravity Fields (bone mineral density loss and spinal muscle unloading in 0g)",
+      "why_exam_needed": "Without gravity, bones break down faster (1-1.5% BMD loss/month); NASA HRP scrutinizes spinal scans and non-treadmill resistive exercises to prevent brittle bone fractures.",
+      "self_exam_guide": "Complete daily 30-min ARED resistive routine, log lower-back stiffness, and maintain morning glucose checks.",
       "related_metrics": ["blood_glucose_mg_dl"]
     },
     {
       "zone_id": "kidneys_fluid",
       "layer": "musculoskeletal",
       "label": "Kidneys / Fluid",
+      "hrp_risk_name": "Risk of Inadequate Food and Nutrition & Renal Stone Mobilization",
+      "reference_title": "NASA HRP — Ongoing HRP Research in Space",
+      "reference_url": "https://www.nasa.gov/hrp/ongoing-hrp-research/",
       "organ_function": "Fluid balance, electrolyte filtration, and renal stone risk prevention.",
       "default_summary": "Hydration and metabolic glucose indicators remain balanced.",
       "space_hazard": "Gravity Fields (bone calcium mobilization increasing renal stone risk) & Isolation",
-      "why_exam_needed": "Bone resorption releases calcium into urine while reduced thirst cues in space elevate kidney stone and dehydration risk.",
-      "self_exam_guide": "Track 2.5 L daily fluid intake, check fasting glucose, and run bladder/kidney ultrasound if flank discomfort occurs.",
+      "why_exam_needed": "Bone resorption releases calcium while reduced thirst cues and altered spaceflight diet/metabolism elevate kidney stone and insulin-resistance risk.",
+      "self_exam_guide": "Track 2.5 L daily fluid intake, log morning blood glucose in mg/dL, and run bladder/kidney ultrasound if flank discomfort occurs.",
       "related_metrics": ["blood_glucose_mg_dl", "systolic_bp"]
     },
     {
       "zone_id": "skin",
       "layer": "immune_radiation",
       "label": "Skin",
-      "organ_function": "Primary barrier against dry cabin air, microbes, and ionizing radiation.",
+      "hrp_risk_name": "Risk of Host-Microorganism Interactions & Viral Reactivation Rashes",
+      "reference_title": "NASA HRP — Risks of Human Spaceflight",
+      "reference_url": "https://www.nasa.gov/hrp/risks/",
+      "organ_function": "Primary barrier against dry cabin air, altered microbiome, and ionizing radiation.",
       "default_summary": "No erythema flare or radiation-associated skin irritation flagged.",
-      "space_hazard": "Hostile Closed Environments (low humidity / microbiome) & Space Radiation",
-      "why_exam_needed": "Skin rashes, slow wound healing, and dryness are among the most frequent in-flight medical complaints.",
+      "space_hazard": "Hostile Closed Environments (skin microbiome shifts) & Space Radiation",
+      "why_exam_needed": "Spaceflight stress can awaken inactive viruses causing rashes, while skin microbiomes shift in closed habitats, increasing dermatitis and infection risk.",
       "self_exam_guide": "Capture a well-lit close-up photo of any rash or irritation using the Vision Camera in Skin/Eye mode.",
       "related_metrics": ["radiation_msv_daily", "temperature_c"]
     },
@@ -139,32 +189,41 @@
       "zone_id": "immune_system",
       "layer": "immune_radiation",
       "label": "Immune System",
-      "organ_function": "Cellular defense and inflammation regulation under cosmic radiation and stress.",
+      "hrp_risk_name": "Risk of Altered Immune System Responses & Radiation Exposure",
+      "reference_title": "CSA — Monitoring Radiation for Astronaut Health",
+      "reference_url": "https://www.asc-csa.gc.ca/eng/news/articles/2026/2026-02-26-monitoring-radiation-astronaut-health.asp",
+      "organ_function": "Cellular defense and inflammation regulation under cosmic/neutron radiation and stress.",
       "default_summary": "Body temperature and cumulative radiation dose remain within nominal bounds.",
-      "space_hazard": "Space Radiation (CSA dosimetry) & Isolation Stress (immune dysregulation)",
-      "why_exam_needed": "Cosmic radiation and stress alter leukocyte activity and can reactivate latent viruses or raise infection risk.",
-      "self_exam_guide": "Verify personal CSA radiation dosimeter reading, measure oral temperature, and log malaise or swollen nodes.",
+      "space_hazard": "Space Radiation (CSA CANS/Radi-N neutron & dosimetry tracking) & Isolation Stress",
+      "why_exam_needed": "Artemis II blood/saliva studies show deep-space radiation and flight stress alter immune responses and elevate long-term cancer and infection risk.",
+      "self_exam_guide": "Verify personal CSA radiation dosimeter reading (mSv), measure oral temperature, and log fever, rash, or swollen nodes.",
       "related_metrics": ["radiation_msv_daily", "temperature_c"]
     },
     {
       "zone_id": "brain_cognition",
       "layer": "neuro_behavioral",
       "label": "Brain / Cognition",
+      "hrp_risk_name": "Risk of Inadequate Sleep, Irregular Schedules & Behavioral Changes",
+      "reference_title": "NASA HRP — Ongoing HRP Research in Space",
+      "reference_url": "https://www.nasa.gov/hrp/ongoing-hrp-research/",
       "organ_function": "Executive alertness, circadian synchronization, and emotional resilience.",
       "default_summary": "Sleep architecture and behavioral mood state are nominal.",
-      "space_hazard": "Isolation and Confinement (circadian misalignment & cognitive fatigue)",
-      "why_exam_needed": "16 sunrises/day or non-24h Martian sols erode sleep quality, raising operational error and behavioral health risk.",
-      "self_exam_guide": "Log sleep hours upon waking, rate mood 1-10 honestly, and use blue-enriched light during wake shift.",
+      "space_hazard": "Isolation and Confinement & Distance from Earth (140M-mile autonomy)",
+      "why_exam_needed": "Chronic sleep loss, shifting work schedules, and prolonged confinement erode cognitive performance, teamwork, and behavioral health.",
+      "self_exam_guide": "Log sleep hours upon waking, rate mood 1-10 honestly (Artemis II Standard Measures), and follow wake-shift light cycles.",
       "related_metrics": ["sleep_hours", "mood_score", "heart_rate"]
     },
     {
       "zone_id": "eyes_sans",
       "layer": "neuro_behavioral",
       "label": "Eyes (SANS)",
-      "organ_function": "Ocular acuity, optic nerve head integrity, and tear-film comfort.",
+      "hrp_risk_name": "Risk of Spaceflight Associated Neuro-ocular Syndrome (SANS)",
+      "reference_title": "NASA HRP — Risks of Human Spaceflight",
+      "reference_url": "https://www.nasa.gov/hrp/risks/",
+      "organ_function": "Ocular acuity, optic nerve head integrity, and intracranial fluid balance.",
       "default_summary": "No fluid-shift or circadian strain warning affecting ocular health.",
-      "space_hazard": "Gravity Fields (Spaceflight Associated Neuro-ocular Syndrome - SANS) & Closed Air",
-      "why_exam_needed": "Cephalad fluid shift elevates intracranial pressure against the optic nerve and flattens the globe over long flights.",
+      "space_hazard": "Gravity Fields (intracranial fluid pressure & SANS) & Closed Air",
+      "why_exam_needed": "Fluid pressure inside the skull during prolonged microgravity can reshape the eyes and optic nerve; HRP researches thigh cuffs and B-vitamin countermeasures.",
       "self_exam_guide": "Capture an eye close-up photo if redness or visual blur occurs, check blood pressure, and run Amsler grid self-test.",
       "related_metrics": ["systolic_bp", "sleep_hours"]
     }
