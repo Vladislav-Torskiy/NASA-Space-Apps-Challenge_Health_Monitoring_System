@@ -1,0 +1,107 @@
+{
+  "mission": {
+    "environment": "spacecraft",
+    "mission_day": 24,
+    "readiness_score": 84,
+    "streak_days": 6,
+    "active_fault": null
+  },
+  "metrics_history": [
+    { "mission_day": 1, "environment": "spacecraft", "heart_rate": 72, "systolic_bp": 122, "diastolic_bp": 79, "blood_glucose_mg_dl": 98, "temperature_c": 36.8, "sleep_hours": 6.4, "mood_score": 7, "radiation_msv": 0.58, "source": "seed", "notes": "TLI burn complete; adapting to 0g fluid shift" },
+    { "mission_day": 2, "environment": "spacecraft", "heart_rate": 73, "systolic_bp": 123, "diastolic_bp": 80, "blood_glucose_mg_dl": 99, "temperature_c": 36.8, "sleep_hours": 6.2, "mood_score": 7, "radiation_msv": 0.59, "source": "seed", "notes": "Mild space motion adaptation" },
+    { "mission_day": 3, "environment": "spacecraft", "heart_rate": 71, "systolic_bp": 121, "diastolic_bp": 78, "blood_glucose_mg_dl": 96, "temperature_c": 36.7, "sleep_hours": 6.5, "mood_score": 7, "radiation_msv": 0.58, "source": "seed", "notes": "Hydration protocol increased to 2.5L" },
+    { "mission_day": 4, "environment": "spacecraft", "heart_rate": 70, "systolic_bp": 120, "diastolic_bp": 78, "blood_glucose_mg_dl": 95, "temperature_c": 36.7, "sleep_hours": 6.6, "mood_score": 8, "radiation_msv": 0.60, "source": "seed", "notes": "ARED resistive setup verified" },
+    { "mission_day": 5, "environment": "spacecraft", "heart_rate": 69, "systolic_bp": 119, "diastolic_bp": 77, "blood_glucose_mg_dl": 94, "temperature_c": 36.6, "sleep_hours": 6.9, "mood_score": 8, "radiation_msv": 0.57, "source": "seed", "notes": "Nominal cruise telemetry" },
+    { "mission_day": 6, "environment": "spacecraft", "heart_rate": 68, "systolic_bp": 118, "diastolic_bp": 76, "blood_glucose_mg_dl": 93, "temperature_c": 36.7, "sleep_hours": 7.0, "mood_score": 8, "radiation_msv": 0.59, "source": "seed", "notes": "Sleep schedule stabilized" },
+    { "mission_day": 7, "environment": "spacecraft", "heart_rate": 69, "systolic_bp": 119, "diastolic_bp": 77, "blood_glucose_mg_dl": 95, "temperature_c": 36.7, "sleep_hours": 6.8, "mood_score": 8, "radiation_msv": 0.61, "source": "seed", "notes": "Weekly CSA dosimeter check nominal" },
+    { "mission_day": 8, "environment": "spacecraft", "heart_rate": 70, "systolic_bp": 120, "diastolic_bp": 77, "blood_glucose_mg_dl": 97, "temperature_c": 36.8, "sleep_hours": 6.7, "mood_score": 8, "radiation_msv": 0.60, "source": "seed", "notes": "Post-workout vitals nominal" },
+    { "mission_day": 9, "environment": "spacecraft", "heart_rate": 67, "systolic_bp": 117, "diastolic_bp": 75, "blood_glucose_mg_dl": 92, "temperature_c": 36.6, "sleep_hours": 7.1, "mood_score": 8, "radiation_msv": 0.58, "source": "seed", "notes": "Good recovery after blue-light cycle" },
+    { "mission_day": 10, "environment": "spacecraft", "heart_rate": 68, "systolic_bp": 118, "diastolic_bp": 76, "blood_glucose_mg_dl": 94, "temperature_c": 36.7, "sleep_hours": 6.9, "mood_score": 8, "radiation_msv": 0.59, "source": "seed", "notes": "Routine ocular check clear" },
+    { "mission_day": 11, "environment": "spacecraft", "heart_rate": 69, "systolic_bp": 119, "diastolic_bp": 77, "blood_glucose_mg_dl": 96, "temperature_c": 36.7, "sleep_hours": 6.6, "mood_score": 7, "radiation_msv": 0.62, "source": "seed", "notes": "Minor cabin humidity dip (34%)" },
+    { "mission_day": 12, "environment": "spacecraft", "heart_rate": 70, "systolic_bp": 120, "diastolic_bp": 78, "blood_glucose_mg_dl": 98, "temperature_c": 36.8, "sleep_hours": 6.5, "mood_score": 7, "radiation_msv": 0.61, "source": "seed", "notes": "Skin hydration balm applied" },
+    { "mission_day": 13, "environment": "spacecraft", "heart_rate": 68, "systolic_bp": 118, "diastolic_bp": 76, "blood_glucose_mg_dl": 95, "temperature_c": 36.7, "sleep_hours": 6.8, "mood_score": 8, "radiation_msv": 0.58, "source": "seed", "notes": "Humidity restored to 44%" },
+    { "mission_day": 14, "environment": "spacecraft", "heart_rate": 67, "systolic_bp": 117, "diastolic_bp": 75, "blood_glucose_mg_dl": 91, "temperature_c": 36.6, "sleep_hours": 7.0, "mood_score": 8, "radiation_msv": 0.59, "source": "seed", "notes": "Bi-weekly ultrasound calibration nominal" },
+    { "mission_day": 15, "environment": "spacecraft", "heart_rate": 69, "systolic_bp": 119, "diastolic_bp": 76, "blood_glucose_mg_dl": 93, "temperature_c": 36.7, "sleep_hours": 6.9, "mood_score": 8, "radiation_msv": 0.60, "source": "seed", "notes": "Fasting glucose within target" },
+    { "mission_day": 16, "environment": "spacecraft", "heart_rate": 68, "systolic_bp": 118, "diastolic_bp": 76, "blood_glucose_mg_dl": 94, "temperature_c": 36.7, "sleep_hours": 6.8, "mood_score": 8, "radiation_msv": 0.59, "source": "seed", "notes": "Steady aerobic & ARED compliance" },
+    { "mission_day": 17, "environment": "spacecraft", "heart_rate": 70, "systolic_bp": 120, "diastolic_bp": 77, "blood_glucose_mg_dl": 97, "temperature_c": 36.8, "sleep_hours": 6.7, "mood_score": 8, "radiation_msv": 0.60, "source": "seed", "notes": "Crew video message received from Earth" },
+    { "mission_day": 18, "environment": "spacecraft", "heart_rate": 67, "systolic_bp": 117, "diastolic_bp": 75, "blood_glucose_mg_dl": 93, "temperature_c": 36.6, "sleep_hours": 7.1, "mood_score": 9, "radiation_msv": 0.58, "source": "seed", "notes": "High behavioral morale" },
+    { "mission_day": 19, "environment": "spacecraft", "heart_rate": 68, "systolic_bp": 118, "diastolic_bp": 76, "blood_glucose_mg_dl": 95, "temperature_c": 36.7, "sleep_hours": 6.9, "mood_score": 8, "radiation_msv": 0.59, "source": "seed", "notes": "Nominal transit operations" },
+    { "mission_day": 20, "environment": "spacecraft", "heart_rate": 69, "systolic_bp": 119, "diastolic_bp": 76, "blood_glucose_mg_dl": 96, "temperature_c": 36.7, "sleep_hours": 6.8, "mood_score": 8, "radiation_msv": 0.60, "source": "seed", "notes": "Weekly radiation audit OK" },
+    { "mission_day": 21, "environment": "spacecraft", "heart_rate": 67, "systolic_bp": 117, "diastolic_bp": 75, "blood_glucose_mg_dl": 92, "temperature_c": 36.6, "sleep_hours": 7.0, "mood_score": 8, "radiation_msv": 0.58, "source": "seed", "notes": "3-week microgravity baseline steady" },
+    { "mission_day": 22, "environment": "spacecraft", "heart_rate": 68, "systolic_bp": 118, "diastolic_bp": 76, "blood_glucose_mg_dl": 94, "temperature_c": 36.7, "sleep_hours": 6.8, "mood_score": 8, "radiation_msv": 0.59, "source": "seed", "notes": "Hydration & electrolyte intake nominal" },
+    { "mission_day": 23, "environment": "spacecraft", "heart_rate": 69, "systolic_bp": 119, "diastolic_bp": 77, "blood_glucose_mg_dl": 95, "temperature_c": 36.7, "sleep_hours": 6.7, "mood_score": 8, "radiation_msv": 0.59, "source": "seed", "notes": "Pre-sleep relaxation completed" },
+    { "mission_day": 24, "environment": "spacecraft", "heart_rate": 68, "systolic_bp": 118, "diastolic_bp": 76, "blood_glucose_mg_dl": 94, "temperature_c": 36.7, "sleep_hours": 6.8, "mood_score": 8, "radiation_msv": 0.59, "source": "seed", "notes": "Current mission day baseline nominal" }
+  ],
+  "routine_tasks": [
+    {
+      "id": 1,
+      "title": "Log Morning Glucose (mg/dL)",
+      "hazard_category": "Nutrition & Metabolism",
+      "due_label": "Due in 45 min",
+      "completed": false,
+      "points": 15
+    },
+    {
+      "id": 2,
+      "title": "30-min Resistive Exercise (Bone Protection)",
+      "hazard_category": "Gravity Fields",
+      "due_label": "Due in 2 hrs",
+      "completed": false,
+      "points": 20
+    },
+    {
+      "id": 3,
+      "title": "Check CSA Radiation Dosimeter",
+      "hazard_category": "Space Radiation",
+      "due_label": "Due in 4 hrs",
+      "completed": false,
+      "points": 15
+    },
+    {
+      "id": 4,
+      "title": "Evening Mood & Sleep Log",
+      "hazard_category": "Isolation & Confinement",
+      "due_label": "Due at 21:00 UTC",
+      "completed": false,
+      "points": 15
+    }
+  ],
+  "badges": [
+    {
+      "code": "bone_guardian",
+      "title": "Bone Guardian",
+      "description": "Completed ARED resistive bone-density countermeasures consistently.",
+      "unlocked": true
+    },
+    {
+      "code": "circadian_master",
+      "title": "Circadian Master",
+      "description": "Maintained >= 6.5h sleep and logged evening circadian check-in.",
+      "unlocked": false
+    },
+    {
+      "code": "radiation_shield",
+      "title": "Radiation Shield",
+      "description": "Verified CSA radiation dosimeter reading and protective posture.",
+      "unlocked": false
+    },
+    {
+      "code": "hydration_glucose_ace",
+      "title": "Hydration & Glucose Ace",
+      "description": "Logged metabolic morning glucose reading within flight protocol.",
+      "unlocked": false
+    },
+    {
+      "code": "vitals_streak_7",
+      "title": "Vitals Streak (7 Days)",
+      "description": "Achieved 7 consecutive days of mission routine compliance.",
+      "unlocked": false
+    },
+    {
+      "code": "autonomous_medic",
+      "title": "Autonomous Medic",
+      "description": "Completed an autonomous Vision/CV self-assessment scan.",
+      "unlocked": false
+    }
+  ]
+}

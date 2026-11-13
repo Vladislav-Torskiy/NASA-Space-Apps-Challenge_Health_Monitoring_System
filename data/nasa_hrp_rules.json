@@ -1,0 +1,172 @@
+{
+  "metadata": {
+    "version": "1.0.0",
+    "sources": [
+      "NASA Human Research Program (HRP) - Five Hazards of Human Spaceflight",
+      "Canadian Space Agency (CSA) - Space Radiation & Autonomous Healthcare",
+      "NASA OSDR / RadLab Reference Ranges"
+    ]
+  },
+  "environments": {
+    "spacecraft": {
+      "label": "Spacecraft Transit",
+      "owlt_seconds": 860,
+      "owlt_label": "14m 20s (Mars Transit)",
+      "gravity": "0g (Microgravity)",
+      "description": "Deep-space transit vehicle with elevated cosmic/solar radiation, 0g cephalad fluid shift, and significant communication latency."
+    },
+    "station": {
+      "label": "Space Station (ISS / Gateway)",
+      "owlt_seconds": 1,
+      "owlt_label": "1.2s (LEO / Cis-Lunar)",
+      "gravity": "0g (Microgravity)",
+      "description": "Orbital habitat with near-real-time ground contact, musculoskeletal unloading, and closed-loop CO2 scrubbing."
+    },
+    "rover": {
+      "label": "Lunar / Mars Rover (EVA)",
+      "owlt_seconds": 240,
+      "owlt_label": "4m 00s (Surface EVA Relay)",
+      "gravity": "0.16g / 0.38g (EVA Load)",
+      "description": "Pressurized rover or EVA sortie with elevated cardiovascular workload, suit thermal rise, and unshielded solar radiation risk."
+    },
+    "base": {
+      "label": "Planetary Base",
+      "owlt_seconds": 420,
+      "owlt_label": "7m 00s (Planetary Habitat)",
+      "gravity": "0.16g / 0.38g (Partial Gravity)",
+      "description": "Long-duration surface base with partial gravity, lunar/Martian regolith dust irritation risk, and prolonged isolation."
+    }
+  },
+  "thresholds": {
+    "spacecraft": {
+      "heart_rate": { "label": "Heart Rate", "unit": "bpm", "nominal_min": 55.0, "nominal_max": 85.0, "caution_min": 48.0, "caution_max": 98.0 },
+      "systolic_bp": { "label": "Systolic BP", "unit": "mmHg", "nominal_min": 105.0, "nominal_max": 130.0, "caution_min": 95.0, "caution_max": 142.0 },
+      "diastolic_bp": { "label": "Diastolic BP", "unit": "mmHg", "nominal_min": 65.0, "nominal_max": 84.0, "caution_min": 58.0, "caution_max": 92.0 },
+      "blood_glucose_mg_dl": { "label": "Blood Glucose", "unit": "mg/dL", "nominal_min": 75.0, "nominal_max": 118.0, "caution_min": 65.0, "caution_max": 145.0 },
+      "temperature_c": { "label": "Body Temperature", "unit": "°C", "nominal_min": 36.1, "nominal_max": 37.2, "caution_min": 35.6, "caution_max": 37.8 },
+      "sleep_hours": { "label": "Daily Sleep", "unit": "hrs", "nominal_min": 6.2, "nominal_max": 8.5, "caution_min": 5.0, "caution_max": 9.5 },
+      "mood_score": { "label": "Mood / Behavioral", "unit": "1-10", "nominal_min": 6.5, "nominal_max": 10.0, "caution_min": 4.5, "caution_max": 10.0 },
+      "radiation_msv_daily": { "label": "Daily Radiation Dose", "unit": "mSv/day", "nominal_min": 0.0, "nominal_max": 1.2, "caution_min": 0.0, "caution_max": 2.5 }
+    },
+    "station": {
+      "heart_rate": { "label": "Heart Rate", "unit": "bpm", "nominal_min": 55.0, "nominal_max": 84.0, "caution_min": 48.0, "caution_max": 96.0 },
+      "systolic_bp": { "label": "Systolic BP", "unit": "mmHg", "nominal_min": 104.0, "nominal_max": 128.0, "caution_min": 94.0, "caution_max": 140.0 },
+      "diastolic_bp": { "label": "Diastolic BP", "unit": "mmHg", "nominal_min": 64.0, "nominal_max": 84.0, "caution_min": 58.0, "caution_max": 92.0 },
+      "blood_glucose_mg_dl": { "label": "Blood Glucose", "unit": "mg/dL", "nominal_min": 75.0, "nominal_max": 115.0, "caution_min": 65.0, "caution_max": 140.0 },
+      "temperature_c": { "label": "Body Temperature", "unit": "°C", "nominal_min": 36.1, "nominal_max": 37.2, "caution_min": 35.6, "caution_max": 37.8 },
+      "sleep_hours": { "label": "Daily Sleep", "unit": "hrs", "nominal_min": 6.2, "nominal_max": 8.5, "caution_min": 5.0, "caution_max": 9.5 },
+      "mood_score": { "label": "Mood / Behavioral", "unit": "1-10", "nominal_min": 6.5, "nominal_max": 10.0, "caution_min": 4.5, "caution_max": 10.0 },
+      "radiation_msv_daily": { "label": "Daily Radiation Dose", "unit": "mSv/day", "nominal_min": 0.0, "nominal_max": 0.9, "caution_min": 0.0, "caution_max": 2.0 }
+    },
+    "rover": {
+      "heart_rate": { "label": "Heart Rate", "unit": "bpm", "nominal_min": 65.0, "nominal_max": 115.0, "caution_min": 55.0, "caution_max": 135.0 },
+      "systolic_bp": { "label": "Systolic BP", "unit": "mmHg", "nominal_min": 110.0, "nominal_max": 138.0, "caution_min": 98.0, "caution_max": 150.0 },
+      "diastolic_bp": { "label": "Diastolic BP", "unit": "mmHg", "nominal_min": 65.0, "nominal_max": 88.0, "caution_min": 58.0, "caution_max": 95.0 },
+      "blood_glucose_mg_dl": { "label": "Blood Glucose", "unit": "mg/dL", "nominal_min": 75.0, "nominal_max": 125.0, "caution_min": 65.0, "caution_max": 150.0 },
+      "temperature_c": { "label": "Body Temperature", "unit": "°C", "nominal_min": 36.2, "nominal_max": 37.6, "caution_min": 35.7, "caution_max": 38.2 },
+      "sleep_hours": { "label": "Daily Sleep", "unit": "hrs", "nominal_min": 6.0, "nominal_max": 8.5, "caution_min": 5.0, "caution_max": 9.5 },
+      "mood_score": { "label": "Mood / Behavioral", "unit": "1-10", "nominal_min": 6.0, "nominal_max": 10.0, "caution_min": 4.5, "caution_max": 10.0 },
+      "radiation_msv_daily": { "label": "Daily Radiation Dose", "unit": "mSv/day", "nominal_min": 0.0, "nominal_max": 1.2, "caution_min": 0.0, "caution_max": 2.5 }
+    },
+    "base": {
+      "heart_rate": { "label": "Heart Rate", "unit": "bpm", "nominal_min": 55.0, "nominal_max": 86.0, "caution_min": 48.0, "caution_max": 100.0 },
+      "systolic_bp": { "label": "Systolic BP", "unit": "mmHg", "nominal_min": 105.0, "nominal_max": 132.0, "caution_min": 95.0, "caution_max": 142.0 },
+      "diastolic_bp": { "label": "Diastolic BP", "unit": "mmHg", "nominal_min": 65.0, "nominal_max": 85.0, "caution_min": 58.0, "caution_max": 92.0 },
+      "blood_glucose_mg_dl": { "label": "Blood Glucose", "unit": "mg/dL", "nominal_min": 75.0, "nominal_max": 118.0, "caution_min": 65.0, "caution_max": 145.0 },
+      "temperature_c": { "label": "Body Temperature", "unit": "°C", "nominal_min": 36.1, "nominal_max": 37.2, "caution_min": 35.6, "caution_max": 37.8 },
+      "sleep_hours": { "label": "Daily Sleep", "unit": "hrs", "nominal_min": 6.2, "nominal_max": 8.5, "caution_min": 5.0, "caution_max": 9.5 },
+      "mood_score": { "label": "Mood / Behavioral", "unit": "1-10", "nominal_min": 6.5, "nominal_max": 10.0, "caution_min": 4.5, "caution_max": 10.0 },
+      "radiation_msv_daily": { "label": "Daily Radiation Dose", "unit": "mSv/day", "nominal_min": 0.0, "nominal_max": 1.0, "caution_min": 0.0, "caution_max": 2.2 }
+    }
+  },
+  "body_zones": [
+    {
+      "zone_id": "heart_vessels",
+      "layer": "cardiovascular",
+      "label": "Heart & Vessels",
+      "organ_function": "Maintains systemic perfusion and blood pressure regulation under altered gravity.",
+      "default_summary": "Resting HR and BP within microgravity baseline.",
+      "space_hazard": "Gravity Fields (cephalad fluid shift) & Hostile Closed Environments (CO2 load)",
+      "why_exam_needed": "Microgravity shifts fluid toward the thorax and head, shrinking plasma volume and risking orthostatic intolerance.",
+      "self_exam_guide": "Sit still for 3 minutes, wrap cuff at heart level, press Measure, and log systolic/diastolic values.",
+      "related_metrics": ["heart_rate", "systolic_bp", "diastolic_bp"]
+    },
+    {
+      "zone_id": "lungs_airway",
+      "layer": "cardiovascular",
+      "label": "Lungs / Airway",
+      "organ_function": "Gas exchange (O2 intake and CO2 clearance) inside pressurized spacecraft/habitat atmosphere.",
+      "default_summary": "Airway and cabin CO2 response remain stable.",
+      "space_hazard": "Hostile Closed Environments (CO2 scrubber drift, airborne particulates)",
+      "why_exam_needed": "Elevated cabin CO2 or pulmonary fluid shift can cause headaches, tachypnea, and B-line artifacts on lung ultrasound.",
+      "self_exam_guide": "Check cabin CO2 readout, perform a 4-zone anterior chest ultrasound sweep if short of breath, and log resting HR.",
+      "related_metrics": ["heart_rate", "temperature_c"]
+    },
+    {
+      "zone_id": "bones_spine",
+      "layer": "musculoskeletal",
+      "label": "Bones & Spine",
+      "organ_function": "Structural support, calcium homeostasis, and intervertebral spacing.",
+      "default_summary": "ARED resistive countermeasures on track with no acute metabolic strain.",
+      "space_hazard": "Gravity Fields (bone mineral density loss and spinal elongation in 0g)",
+      "why_exam_needed": "Astronauts lose 1-1.5% bone mineral density per month in microgravity without resistive exercise and metabolic stability.",
+      "self_exam_guide": "Complete daily 30-min ARED resistive routine, note lower back tension, and maintain morning glucose checks.",
+      "related_metrics": ["blood_glucose_mg_dl"]
+    },
+    {
+      "zone_id": "kidneys_fluid",
+      "layer": "musculoskeletal",
+      "label": "Kidneys / Fluid",
+      "organ_function": "Fluid balance, electrolyte filtration, and renal stone risk prevention.",
+      "default_summary": "Hydration and metabolic glucose indicators remain balanced.",
+      "space_hazard": "Gravity Fields (bone calcium mobilization increasing renal stone risk) & Isolation",
+      "why_exam_needed": "Bone resorption releases calcium into urine while reduced thirst cues in space elevate kidney stone and dehydration risk.",
+      "self_exam_guide": "Track 2.5 L daily fluid intake, check fasting glucose, and run bladder/kidney ultrasound if flank discomfort occurs.",
+      "related_metrics": ["blood_glucose_mg_dl", "systolic_bp"]
+    },
+    {
+      "zone_id": "skin",
+      "layer": "immune_radiation",
+      "label": "Skin",
+      "organ_function": "Primary barrier against dry cabin air, microbes, and ionizing radiation.",
+      "default_summary": "No erythema flare or radiation-associated skin irritation flagged.",
+      "space_hazard": "Hostile Closed Environments (low humidity / microbiome) & Space Radiation",
+      "why_exam_needed": "Skin rashes, slow wound healing, and dryness are among the most frequent in-flight medical complaints.",
+      "self_exam_guide": "Capture a well-lit close-up photo of any rash or irritation using the Vision Camera in Skin/Eye mode.",
+      "related_metrics": ["radiation_msv_daily", "temperature_c"]
+    },
+    {
+      "zone_id": "immune_system",
+      "layer": "immune_radiation",
+      "label": "Immune System",
+      "organ_function": "Cellular defense and inflammation regulation under cosmic radiation and stress.",
+      "default_summary": "Body temperature and cumulative radiation dose remain within nominal bounds.",
+      "space_hazard": "Space Radiation (CSA dosimetry) & Isolation Stress (immune dysregulation)",
+      "why_exam_needed": "Cosmic radiation and stress alter leukocyte activity and can reactivate latent viruses or raise infection risk.",
+      "self_exam_guide": "Verify personal CSA radiation dosimeter reading, measure oral temperature, and log malaise or swollen nodes.",
+      "related_metrics": ["radiation_msv_daily", "temperature_c"]
+    },
+    {
+      "zone_id": "brain_cognition",
+      "layer": "neuro_behavioral",
+      "label": "Brain / Cognition",
+      "organ_function": "Executive alertness, circadian synchronization, and emotional resilience.",
+      "default_summary": "Sleep architecture and behavioral mood state are nominal.",
+      "space_hazard": "Isolation and Confinement (circadian misalignment & cognitive fatigue)",
+      "why_exam_needed": "16 sunrises/day or non-24h Martian sols erode sleep quality, raising operational error and behavioral health risk.",
+      "self_exam_guide": "Log sleep hours upon waking, rate mood 1-10 honestly, and use blue-enriched light during wake shift.",
+      "related_metrics": ["sleep_hours", "mood_score", "heart_rate"]
+    },
+    {
+      "zone_id": "eyes_sans",
+      "layer": "neuro_behavioral",
+      "label": "Eyes (SANS)",
+      "organ_function": "Ocular acuity, optic nerve head integrity, and tear-film comfort.",
+      "default_summary": "No fluid-shift or circadian strain warning affecting ocular health.",
+      "space_hazard": "Gravity Fields (Spaceflight Associated Neuro-ocular Syndrome - SANS) & Closed Air",
+      "why_exam_needed": "Cephalad fluid shift elevates intracranial pressure against the optic nerve and flattens the globe over long flights.",
+      "self_exam_guide": "Capture an eye close-up photo if redness or visual blur occurs, check blood pressure, and run Amsler grid self-test.",
+      "related_metrics": ["systolic_bp", "sleep_hours"]
+    }
+  ]
+}

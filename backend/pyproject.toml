@@ -1,0 +1,9 @@
+[project]
+name = "astra-med-backend"
+version = "0.1.0"
+description = "ASTRA-Med Core Backend & Mission Simulation Engine (NASA Space Apps Challenge - Team xterra)"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
