@@ -23,7 +23,7 @@ router = APIRouter(prefix="/api", tags=["AI / Vision & Risk Engine"])
 async def api_vision_analyze(
     image: UploadFile = File(...),
     mode: VisionMode = Form(...),
-    environment: EnvironmentType = Form("spacecraft"),
+    environment: EnvironmentType | None = Form(None),
     context_notes: str = Form(""),
 ) -> VisionAnalyzeResponse:
     """Analyze ultrasound, skin/eye photo, or medical device display via Hybrid Vision + OpenCV fallback."""
@@ -34,11 +34,19 @@ async def api_vision_analyze(
     with db_session() as conn:
         ensure_seeded(conn)
         try:
+            if environment is None:
+                cur = conn.cursor()
+                row = cur.execute(
+                    "SELECT current_environment FROM mission_state WHERE id = 1"
+                ).fetchone()
+                environment = row["current_environment"] if row else "spacecraft"
+
+
             return analyze_vision_image(
                 conn=conn,
                 image_bytes=image_bytes,
                 mode=mode,
-                environment=environment,
+                environment=environment, # ignore
                 context_notes=context_notes,
             )
         except ValueError as exc:

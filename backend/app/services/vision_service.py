@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import io
 import json
+import math
 import re
 import shutil
 import sqlite3
@@ -25,6 +26,11 @@ from app.schemas import (
     SeverityStatus,
     VisionAnalyzeResponse,
     VisionMode,
+)
+from app.services.risk_engine import (
+    METRIC_TO_ZONES,
+    _classify_metric,
+    get_thresholds_for_env,
 )
 from app.services.routine_service import unlock_badge_if_needed
 
@@ -291,6 +297,28 @@ def _analyze_skin_eye_opencv(img: np.ndarray, context_notes: str) -> dict[str, A
     }
 
 
+_OCR_METRIC_RANGES: dict[str, tuple[float, float, str]] = {
+    "blood_glucose_mg_dl": (40.0, 400.0, "mg/dL"),
+    "temperature_c": (34.0, 42.0, "°C"),
+    "heart_rate": (60.0, 220.0, "bpm"),
+    "systolic_bp": (60.0, 220.0, "mmHg"),
+}
+
+
+def _infer_requested_ocr_metric(context_notes: str) -> str | None:
+    """Return explicit metric name from context_notes if hinted, otherwise None."""
+    notes_lower = context_notes.lower()
+    if "temp" in notes_lower:
+        return "temperature_c"
+    if "hr" in notes_lower or "pulse" in notes_lower:
+        return "heart_rate"
+    if "bp" in notes_lower or "systolic" in notes_lower or "pressure" in notes_lower:
+        return "systolic_bp"
+    if "gluc" in notes_lower or "sugar" in notes_lower:
+        return "blood_glucose_mg_dl"
+    return None
+
+
 def _extract_ocr_digits_fallback(
     img: np.ndarray, context_notes: str
 ) -> tuple[float | None, str, str, RoiBox]:
@@ -318,10 +346,10 @@ def _extract_ocr_digits_fallback(
         cv2.THRESH_BINARY,
         blockSize=31,  
         C=10           
-	)
+    )
     contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     
-    crop = blurred
+    crop = thresh
 
     if contours:
         largest = max(contours, key=cv2.contourArea)
@@ -350,57 +378,64 @@ def _extract_ocr_digits_fallback(
     if is_tesseract_available() and pytesseract is not None:
         try:
             raw_text = pytesseract.image_to_string(
-                final, lang="eng+ukr", config="--psm 6 -c tessedit_char_whitelist=0123456789."
+                final, lang="eng", config="--psm 6 -c tessedit_char_whitelist=0123456789."
             )
         except Exception:
             raw_text = ""
 
-    # Fallback heuristic / deterministic match when tesseract binary is absent in local env
     numbers = re.findall(r"\d+(?:\.\d+)?", raw_text)
-    val: float | None = None
+    requested_metric = _infer_requested_ocr_metric(context_notes)
+
     for token in numbers:
         num = float(token)
-        if 34.0 <= num <= 400.0:
-            val = num
-            break
+        if requested_metric is not None:
+            min_v, max_v, unit = _OCR_METRIC_RANGES[requested_metric]
+            if min_v <= num <= max_v:
+                rounded = round(num, 1) if requested_metric == "temperature_c" else round(num, 0)
+                return rounded, requested_metric, unit, roi_box
+        else:
+            temp_min, temp_max, temp_unit = _OCR_METRIC_RANGES["temperature_c"]
+            gluc_min, gluc_max, gluc_unit = _OCR_METRIC_RANGES["blood_glucose_mg_dl"]
+            if temp_min <= num <= temp_max:
+                return round(num, 1), "temperature_c", temp_unit, roi_box
+            if gluc_min <= num <= gluc_max:
+                return round(num, 0), "blood_glucose_mg_dl", gluc_unit, roi_box
 
-    if val is None:
-        return None, "", "", roi_box 
-
-    # Infer metric type and unit from value range & context notes
-    notes_lower = context_notes.lower()
-    if "temp" in notes_lower or (33.5 <= val <= 42.5):
-        return round(val, 1), "temperature_c", "°C", roi_box
-    if "hr" in notes_lower or "pulse" in notes_lower:
-        return round(val, 0), "heart_rate", "bpm", roi_box
-    if "bp" in notes_lower or "systolic" in notes_lower:
-        return round(val, 0), "systolic_bp", "mmHg", roi_box
-    return round(val, 0), "blood_glucose_mg_dl", "mg/dL", roi_box
+    return None, "", "", roi_box
 
 
-def _analyze_device_ocr_opencv(img: np.ndarray, context_notes: str) -> dict[str, Any]:
+_SEVERITY_TO_ESCALATION: dict[SeverityStatus, EscalationLevel] = {
+    "nominal": "self_care",
+    "caution": "crew_attention",
+    "critical": "flight_surgeon",
+}
+
+
+def evaluate_metric(
+    environment: EnvironmentType,
+    metric_name: str,
+    val: float | None,
+) -> tuple[SeverityStatus, EscalationLevel, list[str]]:
+    default_zones = ["kidneys_fluid", "bones_spine"]
+    if val is None or not isinstance(val, (int, float)) or not math.isfinite(val):
+        return "nominal", "self_care", default_zones
+    thresholds = get_thresholds_for_env(environment)
+    threshold = thresholds.get(metric_name)
+    if threshold is None:
+        return "nominal", "self_care", default_zones
+    severity = _classify_metric(val, threshold)
+    escalation = _SEVERITY_TO_ESCALATION[severity]
+    affected_zones = METRIC_TO_ZONES.get(metric_name, default_zones)
+    return severity, escalation, affected_zones
+
+def _analyze_device_ocr_opencv(
+        img: np.ndarray, 
+        context_notes: str, 
+        env: EnvironmentType = "spacecraft"
+    ) -> dict[str, Any]:
+
     val, metric_name, unit, roi_box = _extract_ocr_digits_fallback(img, context_notes)
-    severity: SeverityStatus = "nominal"
-    escalation: EscalationLevel = "self_care"
-    affected_zones = ["kidneys_fluid", "bones_spine"]
-
-    if metric_name == "blood_glucose_mg_dl" and val is not None:
-        if val > 145 or val < 65:
-            severity = "critical"
-            escalation = "flight_surgeon"
-        elif val > 118 or val < 75:
-            severity = "caution"
-            escalation = "crew_attention"
-    elif metric_name == "temperature_c" and val is not None:
-        affected_zones = ["immune_system", "lungs_airway"]
-        if val > 37.8 or val < 35.6:
-            severity = "critical"
-            escalation = "flight_surgeon"
-        elif val > 37.2 or val < 36.1:
-            severity = "caution"
-            escalation = "crew_attention"
-    elif metric_name in ("heart_rate", "systolic_bp"):
-        affected_zones = ["heart_vessels"]
+    severity, escalation, affected_zones = evaluate_metric(environment=env, metric_name=metric_name, val=val)
 
     if val is None:
         extracted = None
@@ -423,9 +458,15 @@ def _analyze_device_ocr_opencv(img: np.ndarray, context_notes: str) -> dict[str,
             "Click 'Confirm & Log' to commit the measurement and update trend risks.",
         ]
 
+    confidence = (
+        0.25
+        if val is None
+        else (0.88 if is_tesseract_available() else 0.79)
+    )
+
     return {
         "severity": severity,
-        "confidence": 0.88 if is_tesseract_available() else 0.79,
+        "confidence": confidence,
         "extracted_value": extracted,
         "affected_body_zones": affected_zones,
         "roi_boxes": [roi_box],
@@ -587,7 +628,7 @@ def analyze_vision_image(
         elif mode == "skin_eye":
             analysis = _analyze_skin_eye_opencv(img, context_notes)
         elif mode == "device_ocr":
-            analysis = _analyze_device_ocr_opencv(img, context_notes)
+            analysis = _analyze_device_ocr_opencv(img, context_notes, environment)
         else:
             raise ValueError(f"Unsupported vision mode: {mode}")
 
