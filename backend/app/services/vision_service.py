@@ -315,8 +315,24 @@ def _analyze_device_ocr_opencv(img: np.ndarray, context_notes: str) -> dict[str,
 
     if val is None:
         extracted = None
-    else: 
+        explanation_simple = (
+            "Could not clearly read a numeric value from the medical device display. "
+            "Please retake the photo closer to the screen with better lighting and no glare."
+        )
+        action_steps = [
+            "Center the device LCD screen in the frame and avoid reflections.",
+            "Retake the photo in sharper focus or enter the reading manually.",
+        ]
+    else:
         extracted = ExtractedMetricValue(metric=metric_name, value=val, unit=unit)
+        explanation_simple = (
+            f"Extracted reading {val:g} {unit} ({metric_name}) from medical device display. "
+            "Review the number and click Confirm & Log to record it in your mission timeline."
+        )
+        action_steps = [
+            "Verify the recognized reading matches your handheld meter screen.",
+            "Click 'Confirm & Log' to commit the measurement and update trend risks.",
+        ]
 
     return {
         "severity": severity,
@@ -325,14 +341,8 @@ def _analyze_device_ocr_opencv(img: np.ndarray, context_notes: str) -> dict[str,
         "affected_body_zones": affected_zones,
         "roi_boxes": [roi_box],
         "space_hazard_link": "Distance from Earth (Autonomous Device Telemetry Capture)",
-        "explanation_simple": (
-            f"Extracted reading {val:g} {unit} ({metric_name}) from medical device display. "
-            "Review the number and click Confirm & Log to record it in your mission timeline."
-        ),
-        "action_steps": [
-            "Verify the recognized reading matches your handheld meter screen.",
-            "Click 'Confirm & Log' to commit the measurement and update trend risks.",
-        ],
+        "explanation_simple": explanation_simple,
+        "action_steps": action_steps,
         "escalation_level": escalation,
     }
 
@@ -352,6 +362,15 @@ def _prepare_gemini_image(image_bytes: bytes) -> tuple[bytes, str]:
         buf = io.BytesIO()
         rgb_img.save(buf, format="JPEG", quality=92)
         return buf.getvalue(), "image/jpeg"
+
+
+def _validate_str_list(value: Any, field_name: str) -> list[str]:
+    """Validate that a parsed JSON field is a list of non-empty strings."""
+    if not isinstance(value, list) or not all(
+        isinstance(item, str) and bool(item.strip()) for item in value
+    ):
+        raise ValueError(f"{field_name} must be a list of non-empty strings")
+    return value
 
 
 def _try_gemini_vision(
@@ -424,15 +443,29 @@ def _try_gemini_vision(
             if not (0.0 <= box.x <= 1.0 and 0.0 <= box.y <= 1.0 and 0.0 < box.w <= 1.0 and 0.0 < box.h <= 1.0):
                 raise ValueError("ROI box coordinates out of [0..1] range")
 
+        affected_body_zones = _validate_str_list(
+            parsed.get("affected_body_zones", ["lungs_airway"]),
+            "affected_body_zones",
+        )
+        action_steps = _validate_str_list(
+            parsed.get("action_steps", ["Monitor and repeat check."]),
+            "action_steps",
+        )
+
+        space_hazard_link = parsed.get("space_hazard_link", "NASA HRP Spaceflight Hazard")
+        explanation_simple = parsed.get("explanation_simple", "Vision assessment complete.")
+        if not isinstance(space_hazard_link, str) or not isinstance(explanation_simple, str):
+            raise ValueError("space_hazard_link and explanation_simple must be strings")
+
         return {
             "severity": severity,
             "confidence": confidence,
             "extracted_value": extracted_obj,
-            "affected_body_zones": parsed.get("affected_body_zones", ["lungs_airway"]),
+            "affected_body_zones": affected_body_zones,
             "roi_boxes": roi_boxes,
-            "space_hazard_link": parsed.get("space_hazard_link", "NASA HRP Spaceflight Hazard"),
-            "explanation_simple": parsed.get("explanation_simple", "Vision assessment complete."),
-            "action_steps": parsed.get("action_steps", ["Monitor and repeat check."]),
+            "space_hazard_link": space_hazard_link,
+            "explanation_simple": explanation_simple,
+            "action_steps": action_steps,
             "escalation_level": escalation,
         }
     except Exception:
