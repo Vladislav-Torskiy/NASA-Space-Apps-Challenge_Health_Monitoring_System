@@ -8,6 +8,8 @@ import re
 import shutil
 import sqlite3
 from datetime import UTC, datetime
+import io
+from PIL import Image
 from typing import Any
 
 import cv2
@@ -51,9 +53,7 @@ def _decode_image(image_bytes: bytes) -> np.ndarray:
     return img
 
 
-def _encode_annotated_jpeg(
-    img: np.ndarray, boxes: list[RoiBox], severity: SeverityStatus
-) -> str:
+def _encode_annotated_jpeg(img: np.ndarray, boxes: list[RoiBox], severity: SeverityStatus) -> str:
     annotated = img.copy()
     h, w = annotated.shape[:2]
     color_bgr = (
@@ -104,9 +104,7 @@ def _analyze_ultrasound_opencv(img: np.ndarray) -> dict[str, Any]:
     r_start, r_end = int(h * 0.2), int(h * 0.85)
     roi_slice = enhanced[r_start:r_end, c_start:c_end]
     bright_fraction = float((roi_slice > 145).mean())
-    col_peaks = int(
-        (vertical_energy[c_start:c_end] > vertical_energy.mean() * 1.45).sum()
-    )
+    col_peaks = int((vertical_energy[c_start:c_end] > vertical_energy.mean() * 1.45).sum())
 
     if bright_fraction > 0.14 or col_peaks >= 12:
         severity: SeverityStatus = "caution"
@@ -171,9 +169,7 @@ def _analyze_skin_eye_opencv(img: np.ndarray, context_notes: str) -> dict[str, A
             )
 
     notes_lower = context_notes.lower()
-    is_eye_focus = any(
-        k in notes_lower for k in ("eye", "sans", "vision", "blur", "ocular")
-    )
+    is_eye_focus = any(k in notes_lower for k in ("eye", "sans", "vision", "blur", "ocular"))
     zones = ["eyes_sans", "skin"] if is_eye_focus else ["skin", "eyes_sans"]
 
     if erythema_ratio >= 0.20:
@@ -204,11 +200,7 @@ def _analyze_skin_eye_opencv(img: np.ndarray, context_notes: str) -> dict[str, A
         severity = "nominal"
         escalation = "self_care"
         if not boxes:
-            boxes = [
-                RoiBox(
-                    x=0.25, y=0.25, w=0.50, h=0.50, label="Inspection region nominal"
-                )
-            ]
+            boxes = [RoiBox(x=0.25, y=0.25, w=0.50, h=0.50, label="Inspection region nominal")]
         explanation = "No significant erythema or acute inflammation flare detected in the inspected skin/ocular frame."
         steps = [
             "Maintain routine skin hydration and eye comfort protocol.",
@@ -238,9 +230,7 @@ def _extract_ocr_digits_fallback(
     # Find bright/high-contrast rectangular LCD display if present
     blurred = cv2.GaussianBlur(gray, (5, 5), 0)
     _, thresh_rect = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    contours, _ = cv2.findContours(
-        thresh_rect, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-    )
+    contours, _ = cv2.findContours(thresh_rect, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     crop = gray
     if contours:
         largest = max(contours, key=cv2.contourArea)
@@ -325,9 +315,7 @@ def _analyze_device_ocr_opencv(img: np.ndarray, context_notes: str) -> dict[str,
     return {
         "severity": severity,
         "confidence": 0.88 if is_tesseract_available() else 0.79,
-        "extracted_value": ExtractedMetricValue(
-            metric=metric_name, value=val, unit=unit
-        ),
+        "extracted_value": ExtractedMetricValue(metric=metric_name, value=val, unit=unit),
         "affected_body_zones": affected_zones,
         "roi_boxes": [roi_box],
         "space_hazard_link": "Distance from Earth (Autonomous Device Telemetry Capture)",
@@ -343,6 +331,23 @@ def _analyze_device_ocr_opencv(img: np.ndarray, context_notes: str) -> dict[str,
     }
 
 
+_SUPPORTED_GEMINI_MIME_TYPES = frozenset(
+    {"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"}
+)
+
+
+def _prepare_gemini_image(image_bytes: bytes) -> tuple[bytes, str]:
+    """Return Gemini-compatible image bytes and MIME type, re-encoding unsupported formats to JPEG."""
+    with Image.open(io.BytesIO(image_bytes)) as img:
+        mime_type = Image.MIME.get(img.format or "")
+        if mime_type in _SUPPORTED_GEMINI_MIME_TYPES:
+            return image_bytes, mime_type
+        rgb_img = img.convert("RGB") if img.mode != "RGB" else img
+        buf = io.BytesIO()
+        rgb_img.save(buf, format="JPEG", quality=92)
+        return buf.getvalue(), "image/jpeg"
+
+
 def _try_gemini_vision(
     image_bytes: bytes,
     mode: VisionMode,
@@ -351,13 +356,14 @@ def _try_gemini_vision(
 ) -> dict[str, Any] | None:
     """Call Gemini Free Tier with strict JSON output; return None cleanly on any error/timeout."""
     api_key = settings.gemini_api_key
+    timeout = settings.vision_timeout_seconds
     if not api_key:
         return None
     try:
         from google import genai
         from google.genai import types
 
-        client = genai.Client(api_key=api_key)
+        client = genai.Client(api_key=api_key, http_options=types.HttpOptions(timeout=int(timeout)))
         prompt = (
             "You are ASTRA-Med, an autonomous spacecraft medical assistant grounded in NASA HRP 5 Hazards. "
             f"Analyze this image in mode='{mode}' for environment='{environment}'. "
@@ -372,10 +378,12 @@ def _try_gemini_vision(
             "action_steps (array of 2-3 short strings), "
             "escalation_level ('self_care'|'crew_attention'|'flight_surgeon')."
         )
+
+        prepared_bytes, mime_type = _prepare_gemini_image(image_bytes)
         response = client.models.generate_content(
             model=settings.gemini_model,
             contents=[
-                types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg"),
+                types.Part.from_bytes(data=prepared_bytes, mime_type=mime_type),
                 prompt,
             ],
             config=types.GenerateContentConfig(
@@ -389,9 +397,7 @@ def _try_gemini_vision(
         roi_boxes = [RoiBox(**b) for b in parsed.get("roi_boxes", [])]
         ext = parsed.get("extracted_value")
         extracted_obj = (
-            ExtractedMetricValue(**ext)
-            if isinstance(ext, dict) and "value" in ext
-            else None
+            ExtractedMetricValue(**ext) if isinstance(ext, dict) and "value" in ext else None
         )
         return {
             "severity": parsed.get("severity", "caution"),
@@ -399,12 +405,8 @@ def _try_gemini_vision(
             "extracted_value": extracted_obj,
             "affected_body_zones": parsed.get("affected_body_zones", ["lungs_airway"]),
             "roi_boxes": roi_boxes,
-            "space_hazard_link": parsed.get(
-                "space_hazard_link", "NASA HRP Spaceflight Hazard"
-            ),
-            "explanation_simple": parsed.get(
-                "explanation_simple", "Vision assessment complete."
-            ),
+            "space_hazard_link": parsed.get("space_hazard_link", "NASA HRP Spaceflight Hazard"),
+            "explanation_simple": parsed.get("explanation_simple", "Vision assessment complete."),
             "action_steps": parsed.get("action_steps", ["Monitor and repeat check."]),
             "escalation_level": parsed.get("escalation_level", "self_care"),
         }
@@ -428,9 +430,7 @@ def analyze_vision_image(
         provider_used = "gemini_free"
         analysis = cloud_result
     else:
-        provider_used = (
-            "offline_opencv_tesseract" if is_tesseract_available() else "offline_opencv"
-        )
+        provider_used = "offline_opencv_tesseract" if is_tesseract_available() else "offline_opencv"
         if mode == "ultrasound":
             analysis = _analyze_ultrasound_opencv(img)
         elif mode == "skin_eye":
@@ -440,9 +440,7 @@ def analyze_vision_image(
         else:
             raise ValueError(f"Unsupported vision mode: {mode}")
 
-    annotated_b64 = _encode_annotated_jpeg(
-        img, analysis["roi_boxes"], analysis["severity"]
-    )
+    annotated_b64 = _encode_annotated_jpeg(img, analysis["roi_boxes"], analysis["severity"])
 
     extracted_dict = (
         analysis["extracted_value"].model_dump()
