@@ -3,17 +3,18 @@
 from __future__ import annotations
 
 import base64
+import io
 import json
 import re
 import shutil
 import sqlite3
+import typing
 from datetime import UTC, datetime
-import io
-from PIL import Image
 from typing import Any
 
 import cv2
 import numpy as np
+from PIL import Image
 
 from app.config import settings
 from app.schemas import (
@@ -312,10 +313,15 @@ def _analyze_device_ocr_opencv(img: np.ndarray, context_notes: str) -> dict[str,
     elif metric_name in ("heart_rate", "systolic_bp"):
         affected_zones = ["heart_vessels"]
 
+    if val is None:
+        extracted = None
+    else: 
+        extracted = ExtractedMetricValue(metric=metric_name, value=val, unit=unit)
+
     return {
         "severity": severity,
         "confidence": 0.88 if is_tesseract_available() else 0.79,
-        "extracted_value": ExtractedMetricValue(metric=metric_name, value=val, unit=unit),
+        "extracted_value": extracted,
         "affected_body_zones": affected_zones,
         "roi_boxes": [roi_box],
         "space_hazard_link": "Distance from Earth (Autonomous Device Telemetry Capture)",
@@ -363,7 +369,7 @@ def _try_gemini_vision(
         from google import genai
         from google.genai import types
 
-        client = genai.Client(api_key=api_key, http_options=types.HttpOptions(timeout=int(timeout)))
+        client = genai.Client(api_key=api_key, http_options=types.HttpOptions(timeout=int(timeout) * 1000))
         prompt = (
             "You are ASTRA-Med, an autonomous spacecraft medical assistant grounded in NASA HRP 5 Hazards. "
             f"Analyze this image in mode='{mode}' for environment='{environment}'. "
@@ -399,16 +405,35 @@ def _try_gemini_vision(
         extracted_obj = (
             ExtractedMetricValue(**ext) if isinstance(ext, dict) and "value" in ext else None
         )
+
+        allowed_severity = typing.get_args(SeverityStatus)
+        severity = parsed.get("severity", "caution")
+        if severity not in allowed_severity:
+            raise ValueError("Incorrect severity")
+
+        allowed_escalation = typing.get_args(EscalationLevel)
+        escalation = parsed.get("escalation_level", "self_care")
+        if escalation not in allowed_escalation:
+            raise ValueError("Incorrect escalation")
+
+        confidence = float(parsed.get("confidence", 0.85))
+        if not 0 <= confidence <= 1:
+            raise ValueError("Confidence out of range 0..1")
+
+        for box in roi_boxes:
+            if not (0.0 <= box.x <= 1.0 and 0.0 <= box.y <= 1.0 and 0.0 < box.w <= 1.0 and 0.0 < box.h <= 1.0):
+                raise ValueError("ROI box coordinates out of [0..1] range")
+
         return {
-            "severity": parsed.get("severity", "caution"),
-            "confidence": float(parsed.get("confidence", 0.85)),
+            "severity": severity,
+            "confidence": confidence,
             "extracted_value": extracted_obj,
             "affected_body_zones": parsed.get("affected_body_zones", ["lungs_airway"]),
             "roi_boxes": roi_boxes,
             "space_hazard_link": parsed.get("space_hazard_link", "NASA HRP Spaceflight Hazard"),
             "explanation_simple": parsed.get("explanation_simple", "Vision assessment complete."),
             "action_steps": parsed.get("action_steps", ["Monitor and repeat check."]),
-            "escalation_level": parsed.get("escalation_level", "self_care"),
+            "escalation_level": escalation,
         }
     except Exception:
         return None
