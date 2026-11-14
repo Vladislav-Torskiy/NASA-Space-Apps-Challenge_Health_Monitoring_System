@@ -51,11 +51,17 @@ def _decode_image(image_bytes: bytes) -> np.ndarray:
     return img
 
 
-def _encode_annotated_jpeg(img: np.ndarray, boxes: list[RoiBox], severity: SeverityStatus) -> str:
+def _encode_annotated_jpeg(
+    img: np.ndarray, boxes: list[RoiBox], severity: SeverityStatus
+) -> str:
     annotated = img.copy()
     h, w = annotated.shape[:2]
     color_bgr = (
-        (68, 68, 239) if severity == "critical" else (11, 158, 245) if severity == "caution" else (94, 197, 34)
+        (68, 68, 239)
+        if severity == "critical"
+        else (11, 158, 245)
+        if severity == "caution"
+        else (94, 197, 34)
     )
     for box in boxes:
         x1 = max(0, int(box.x * w))
@@ -98,16 +104,16 @@ def _analyze_ultrasound_opencv(img: np.ndarray) -> dict[str, Any]:
     r_start, r_end = int(h * 0.2), int(h * 0.85)
     roi_slice = enhanced[r_start:r_end, c_start:c_end]
     bright_fraction = float((roi_slice > 145).mean())
-    col_peaks = int((vertical_energy[c_start:c_end] > vertical_energy.mean() * 1.45).sum())
+    col_peaks = int(
+        (vertical_energy[c_start:c_end] > vertical_energy.mean() * 1.45).sum()
+    )
 
     if bright_fraction > 0.14 or col_peaks >= 12:
         severity: SeverityStatus = "caution"
         escalation: EscalationLevel = "crew_attention"
         confidence = 0.82
         boxes = [RoiBox(x=0.28, y=0.24, w=0.44, h=0.52, label="B-line cluster region")]
-        explanation = (
-            "Detected localized vertical ultrasound artifacts (B-line pattern) suggesting mild pulmonary fluid shift or localized congestion."
-        )
+        explanation = "Detected localized vertical ultrasound artifacts (B-line pattern) suggesting mild pulmonary fluid shift or localized congestion."
         steps = [
             "Repeat scan on both lung fields in 4 hours to verify persistence.",
             "Review cabin CO2 and daily fluid intake logs.",
@@ -118,9 +124,7 @@ def _analyze_ultrasound_opencv(img: np.ndarray) -> dict[str, Any]:
         escalation = "self_care"
         confidence = 0.86
         boxes = [RoiBox(x=0.25, y=0.22, w=0.50, h=0.55, label="Pleural field nominal")]
-        explanation = (
-            "Ultrasound acoustic profile appears uniform without prominent vertical B-line clusters or fluid accumulation."
-        )
+        explanation = "Ultrasound acoustic profile appears uniform without prominent vertical B-line clusters or fluid accumulation."
         steps = [
             "Store baseline ultrasound frame for mission comparison.",
             "Continue routine hydration and resistive exercise countermeasures.",
@@ -167,7 +171,9 @@ def _analyze_skin_eye_opencv(img: np.ndarray, context_notes: str) -> dict[str, A
             )
 
     notes_lower = context_notes.lower()
-    is_eye_focus = any(k in notes_lower for k in ("eye", "sans", "vision", "blur", "ocular"))
+    is_eye_focus = any(
+        k in notes_lower for k in ("eye", "sans", "vision", "blur", "ocular")
+    )
     zones = ["eyes_sans", "skin"] if is_eye_focus else ["skin", "eyes_sans"]
 
     if erythema_ratio >= 0.20:
@@ -198,10 +204,12 @@ def _analyze_skin_eye_opencv(img: np.ndarray, context_notes: str) -> dict[str, A
         severity = "nominal"
         escalation = "self_care"
         if not boxes:
-            boxes = [RoiBox(x=0.25, y=0.25, w=0.50, h=0.50, label="Inspection region nominal")]
-        explanation = (
-            "No significant erythema or acute inflammation flare detected in the inspected skin/ocular frame."
-        )
+            boxes = [
+                RoiBox(
+                    x=0.25, y=0.25, w=0.50, h=0.50, label="Inspection region nominal"
+                )
+            ]
+        explanation = "No significant erythema or acute inflammation flare detected in the inspected skin/ocular frame."
         steps = [
             "Maintain routine skin hydration and eye comfort protocol.",
             "Log any itching or blurred vision symptoms manually if they appear later.",
@@ -220,7 +228,9 @@ def _analyze_skin_eye_opencv(img: np.ndarray, context_notes: str) -> dict[str, A
     }
 
 
-def _extract_ocr_digits_fallback(img: np.ndarray, context_notes: str) -> tuple[float | None, str, str, RoiBox]:
+def _extract_ocr_digits_fallback(
+    img: np.ndarray, context_notes: str
+) -> tuple[float | None, str, str, RoiBox]:
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     h, w = gray.shape
     roi_box = RoiBox(x=0.10, y=0.14, w=0.80, h=0.66, label="LCD display region")
@@ -228,7 +238,9 @@ def _extract_ocr_digits_fallback(img: np.ndarray, context_notes: str) -> tuple[f
     # Find bright/high-contrast rectangular LCD display if present
     blurred = cv2.GaussianBlur(gray, (5, 5), 0)
     _, thresh_rect = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    contours, _ = cv2.findContours(thresh_rect, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contours, _ = cv2.findContours(
+        thresh_rect, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+    )
     crop = gray
     if contours:
         largest = max(contours, key=cv2.contourArea)
@@ -244,7 +256,7 @@ def _extract_ocr_digits_fallback(img: np.ndarray, context_notes: str) -> tuple[f
             )
 
     raw_text = ""
-    if is_tesseract_available():
+    if is_tesseract_available() and pytesseract is not None:
         try:
             proc = cv2.adaptiveThreshold(
                 crop, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 25, 8
@@ -313,7 +325,9 @@ def _analyze_device_ocr_opencv(img: np.ndarray, context_notes: str) -> dict[str,
     return {
         "severity": severity,
         "confidence": 0.88 if is_tesseract_available() else 0.79,
-        "extracted_value": ExtractedMetricValue(metric=metric_name, value=val, unit=unit),
+        "extracted_value": ExtractedMetricValue(
+            metric=metric_name, value=val, unit=unit
+        ),
         "affected_body_zones": affected_zones,
         "roi_boxes": [roi_box],
         "space_hazard_link": "Distance from Earth (Autonomous Device Telemetry Capture)",
@@ -374,15 +388,23 @@ def _try_gemini_vision(
         parsed = json.loads(response.text)
         roi_boxes = [RoiBox(**b) for b in parsed.get("roi_boxes", [])]
         ext = parsed.get("extracted_value")
-        extracted_obj = ExtractedMetricValue(**ext) if isinstance(ext, dict) and "value" in ext else None
+        extracted_obj = (
+            ExtractedMetricValue(**ext)
+            if isinstance(ext, dict) and "value" in ext
+            else None
+        )
         return {
             "severity": parsed.get("severity", "caution"),
             "confidence": float(parsed.get("confidence", 0.85)),
             "extracted_value": extracted_obj,
             "affected_body_zones": parsed.get("affected_body_zones", ["lungs_airway"]),
             "roi_boxes": roi_boxes,
-            "space_hazard_link": parsed.get("space_hazard_link", "NASA HRP Spaceflight Hazard"),
-            "explanation_simple": parsed.get("explanation_simple", "Vision assessment complete."),
+            "space_hazard_link": parsed.get(
+                "space_hazard_link", "NASA HRP Spaceflight Hazard"
+            ),
+            "explanation_simple": parsed.get(
+                "explanation_simple", "Vision assessment complete."
+            ),
             "action_steps": parsed.get("action_steps", ["Monitor and repeat check."]),
             "escalation_level": parsed.get("escalation_level", "self_care"),
         }
@@ -406,7 +428,9 @@ def analyze_vision_image(
         provider_used = "gemini_free"
         analysis = cloud_result
     else:
-        provider_used = "offline_opencv_tesseract" if is_tesseract_available() else "offline_opencv"
+        provider_used = (
+            "offline_opencv_tesseract" if is_tesseract_available() else "offline_opencv"
+        )
         if mode == "ultrasound":
             analysis = _analyze_ultrasound_opencv(img)
         elif mode == "skin_eye":
@@ -416,7 +440,9 @@ def analyze_vision_image(
         else:
             raise ValueError(f"Unsupported vision mode: {mode}")
 
-    annotated_b64 = _encode_annotated_jpeg(img, analysis["roi_boxes"], analysis["severity"])
+    annotated_b64 = _encode_annotated_jpeg(
+        img, analysis["roi_boxes"], analysis["severity"]
+    )
 
     extracted_dict = (
         analysis["extracted_value"].model_dump()
