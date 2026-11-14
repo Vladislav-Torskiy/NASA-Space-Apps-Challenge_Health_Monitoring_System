@@ -294,15 +294,35 @@ def _analyze_skin_eye_opencv(img: np.ndarray, context_notes: str) -> dict[str, A
 def _extract_ocr_digits_fallback(
     img: np.ndarray, context_notes: str
 ) -> tuple[float | None, str, str, RoiBox]:
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    upscaled = cv2.resize(img, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
+    gray = cv2.cvtColor(upscaled, cv2.COLOR_BGR2GRAY)
     h, w = gray.shape
     roi_box = RoiBox(x=0.10, y=0.14, w=0.80, h=0.66, label="LCD display region")
 
+    # Using clahe method because astronauts photo 
+    # not always have perfect lighting
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    contrasted = clahe.apply(gray)
+
+    # Make image more smoothed after contrast
+    blurred = cv2.GaussianBlur(contrasted, (5, 5), 0)
+    blurred = cv2.medianBlur(blurred, 3) 
+
     # Find bright/high-contrast rectangular LCD display if present
-    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-    _, thresh_rect = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    contours, _ = cv2.findContours(thresh_rect, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    crop = gray
+    # Using adaptive binarisation istead of UTSU because it will be real photos, 
+    # OTSU is more effective for screenshots
+    thresh = cv2.adaptiveThreshold(
+        blurred,
+        255,
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv2.THRESH_BINARY,
+        blockSize=31,  
+        C=10           
+	)
+    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+    crop = blurred
+
     if contours:
         largest = max(contours, key=cv2.contourArea)
         if cv2.contourArea(largest) > (h * w * 0.15):
@@ -316,14 +336,21 @@ def _extract_ocr_digits_fallback(
                 label="Detected device display",
             )
 
+    kernel = np.ones((2, 2), np.uint8)
+    thick_text = cv2.erode(crop, kernel, iterations=1)
+
+    inv = cv2.bitwise_not(thick_text)
+    inv = cv2.morphologyEx(inv, cv2.MORPH_OPEN, kernel)
+    inv = cv2.morphologyEx(inv, cv2.MORPH_CLOSE, kernel)
+
+    clean = cv2.bitwise_not(inv)
+    final = cv2.copyMakeBorder(clean, 20, 20, 20, 20, cv2.BORDER_CONSTANT, value=255)
+
     raw_text = ""
     if is_tesseract_available() and pytesseract is not None:
         try:
-            proc = cv2.adaptiveThreshold(
-                crop, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 25, 8
-            )
             raw_text = pytesseract.image_to_string(
-                proc, config="--psm 6 -c tessedit_char_whitelist=0123456789."
+                final, lang="eng+ukr", config="--psm 6 -c tessedit_char_whitelist=0123456789."
             )
         except Exception:
             raw_text = ""
