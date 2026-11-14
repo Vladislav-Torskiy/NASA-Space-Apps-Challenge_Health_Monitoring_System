@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from app.config import load_nasa_rules, settings
 from app.schemas import (
@@ -19,7 +19,7 @@ from app.services.seed_service import reset_to_baseline
 
 
 def _utc_now_iso() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    return datetime.now(UTC).replace(microsecond=0).isoformat()
 
 
 def get_mission_context(conn: sqlite3.Connection) -> MissionContext:
@@ -95,7 +95,7 @@ def inject_demo_fault(conn: sqlite3.Connection, fault: FaultType) -> DemoFaultRe
     state_row = conn.execute("SELECT * FROM mission_state WHERE id = 1;").fetchone()
     env = state_row["current_environment"]
     current_day = int(state_row["mission_day"])
-    now = datetime.now(timezone.utc).replace(microsecond=0)
+    now = datetime.now(UTC).replace(microsecond=0)
 
     if fault == "solar_flare":
         new_day = current_day + 1

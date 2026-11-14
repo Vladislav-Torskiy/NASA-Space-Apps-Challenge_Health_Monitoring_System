@@ -5,6 +5,11 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BACKEND_DIR="$ROOT_DIR/backend"
 FRONTEND_DIR="$ROOT_DIR/frontend"
 
+if [ ! -f "$ROOT_DIR/.env" ] && [ -f "$ROOT_DIR/.env.example" ]; then
+  echo "[ASTRA-Med] Creating .env from .env.example..."
+  cp "$ROOT_DIR/.env.example" "$ROOT_DIR/.env"
+fi
+
 if [ ! -d "$BACKEND_DIR/.venv" ]; then
   echo "[ASTRA-Med] Creating Python virtual environment in backend/.venv..."
   python3 -m venv "$BACKEND_DIR/.venv"

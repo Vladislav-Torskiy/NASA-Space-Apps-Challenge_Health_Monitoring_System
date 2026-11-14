@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.schemas import GroundTransmitRequest, GroundTransmitResponse
 from app.services.mission_simulator import get_latest_metrics, get_mission_context
@@ -15,7 +15,7 @@ def transmit_to_ground(
     conn: sqlite3.Connection, req: GroundTransmitRequest
 ) -> GroundTransmitResponse:
     """Assemble and store a compact Telemetry & Medical Packet with OWLT latency info."""
-    created_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    created_at = datetime.now(UTC).replace(microsecond=0).isoformat()
     mission = get_mission_context(conn)
     latest = get_latest_metrics(conn)
     evaluation = evaluate_risk(conn)

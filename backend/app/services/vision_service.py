@@ -7,7 +7,7 @@ import json
 import re
 import shutil
 import sqlite3
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import cv2
@@ -431,7 +431,7 @@ def analyze_vision_image(
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
         """,
         (
-            datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+            datetime.now(UTC).replace(microsecond=0).isoformat(),
             mode,
             provider_used,
             analysis["severity"],

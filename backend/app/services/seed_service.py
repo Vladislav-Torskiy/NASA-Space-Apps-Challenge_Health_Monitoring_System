@@ -3,20 +3,20 @@
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from app.config import load_seed_data
 
 
 def _utc_now_iso() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    return datetime.now(UTC).replace(microsecond=0).isoformat()
 
 
 def reset_to_baseline(conn: sqlite3.Connection) -> None:
     """Clear dynamic mission tables and load the nominal 24-day seed dataset."""
     seed = load_seed_data()
     mission = seed["mission"]
-    now = datetime.now(timezone.utc).replace(microsecond=0)
+    now = datetime.now(UTC).replace(microsecond=0)
     max_day = max((int(item["mission_day"]) for item in seed["metrics_history"]), default=24)
 
     conn.execute("DELETE FROM ground_packets;")

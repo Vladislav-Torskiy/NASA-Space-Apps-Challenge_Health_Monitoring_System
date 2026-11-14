@@ -57,22 +57,29 @@ NASA-Space-Apps-Challenge_Health_Monitoring_System/
 
 ### 1. Локальний запуск без Docker
 ```bash
+cp .env.example .env
 cd backend
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
-Або з кореня репозиторію:
+Або з кореня репозиторію (скрипт автоматично створить `.env` із `.env.example` за відсутності):
 ```bash
 ./scripts/run_dev.sh
+```
+Або через **Docker Compose** (перед запуском скопіюйте `.env.example` у `.env` і за потреби додайте `GEMINI_API_KEY`):
+```bash
+cp .env.example .env
+docker compose up --build
 ```
 Після запуску інтерактивна документація **Swagger UI** доступна на:  
 `http://localhost:8000/docs`
 
-### 2. Перевірка автотестів
+### 2. Перевірка лінтером та автотестами
 ```bash
 cd backend
+.venv/bin/ruff check .
 .venv/bin/pytest -v
 ```
 

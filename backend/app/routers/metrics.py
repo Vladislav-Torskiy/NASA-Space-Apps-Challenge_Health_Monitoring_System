@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Query
 
@@ -60,7 +60,7 @@ def api_metrics_history(
 @router.post("", response_model=MetricCreateResponse)
 def api_create_metric(payload: MetricCreateRequest) -> MetricCreateResponse:
     """Log a new manual or OCR-confirmed biometric reading and re-evaluate mission risk."""
-    now_iso = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    now_iso = datetime.now(UTC).replace(microsecond=0).isoformat()
     with db_session() as conn:
         ensure_seeded(conn)
         state = conn.execute(

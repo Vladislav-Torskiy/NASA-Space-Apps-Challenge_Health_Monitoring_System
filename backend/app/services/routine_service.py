@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.schemas import (
     BadgeItem,
@@ -15,7 +15,7 @@ from app.services.risk_engine import evaluate_risk
 
 
 def _utc_now_iso() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    return datetime.now(UTC).replace(microsecond=0).isoformat()
 
 
 def get_gamification_summary(conn: sqlite3.Connection) -> GamificationSummary:
