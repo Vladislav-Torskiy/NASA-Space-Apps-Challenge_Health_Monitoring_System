@@ -54,6 +54,76 @@ def _decode_image(image_bytes: bytes) -> np.ndarray:
     return img
 
 
+_MIN_BRIGHTNESS_MEAN = 15.0
+_MAX_BRIGHTNESS_MEAN = 240.0
+_MIN_LAPLACIAN_VAR_DEFAULT = 15.0
+_MIN_LAPLACIAN_VAR_SKIN_EYE = 0.3
+_LOW_QUALITY_MAX_CONFIDENCE = 0.42
+
+
+def _check_image_quality(img: np.ndarray, mode: VisionMode) -> list[str]:
+    """Check grayscale brightness and Laplacian sharpness; return list of human-readable issues."""
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    mean_brightness = float(gray.mean())
+    laplacian_var = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+
+    issues: list[str] = []
+    if mean_brightness < _MIN_BRIGHTNESS_MEAN:
+        issues.append("too dark (underexposed)")
+    elif mean_brightness > _MAX_BRIGHTNESS_MEAN:
+        issues.append("overexposed (excessive brightness or glare)")
+
+    min_lap_var = (
+        _MIN_LAPLACIAN_VAR_SKIN_EYE
+        if mode == "skin_eye"
+        else _MIN_LAPLACIAN_VAR_DEFAULT
+    )
+    if laplacian_var < min_lap_var:
+        issues.append("heavily blurred or out of focus")
+
+    return issues
+
+
+def _apply_quality_warnings(
+    analysis: dict[str, Any],
+    mode: VisionMode,
+    quality_issues: list[str],
+) -> dict[str, Any]:
+    """Attach non-crashing quality warnings and suppress fake OCR digits on degraded frames."""
+    if not quality_issues:
+        return analysis
+
+    updated = dict(analysis)
+    issues_text = ", ".join(quality_issues)
+    warning_prefix = f"Image quality warning: frame appears {issues_text}. "
+    retake_step = (
+        "Retake the image in steady focus with balanced lighting and minimal glare."
+    )
+
+    if mode == "device_ocr":
+        updated["extracted_value"] = None
+        updated["severity"] = "nominal"
+        updated["escalation_level"] = "self_care"
+        updated["explanation_simple"] = (
+            f"{warning_prefix}Could not reliably read a numeric value from the medical device display. "
+            "Please retake the photo closer to the screen with better lighting and sharp focus."
+        )
+    else:
+        existing_explanation = str(updated.get("explanation_simple", "")).strip()
+        if not existing_explanation.startswith("Image quality warning:"):
+            updated["explanation_simple"] = f"{warning_prefix}{existing_explanation}".strip()
+
+    existing_steps = list(updated.get("action_steps", []))
+    if retake_step not in existing_steps:
+        updated["action_steps"] = [retake_step, *existing_steps]
+
+    updated["confidence"] = min(
+        float(updated.get("confidence", _LOW_QUALITY_MAX_CONFIDENCE)),
+        _LOW_QUALITY_MAX_CONFIDENCE,
+    )
+    return updated
+
+
 def _encode_annotated_jpeg(img: np.ndarray, boxes: list[RoiBox], severity: SeverityStatus) -> str:
     annotated = img.copy()
     h, w = annotated.shape[:2]
@@ -501,6 +571,7 @@ def analyze_vision_image(
         else:
             raise ValueError(f"Unsupported vision mode: {mode}")
 
+    analysis = _apply_quality_warnings(analysis, mode, quality_issues)
     annotated_b64 = _encode_annotated_jpeg(img, analysis["roi_boxes"], analysis["severity"])
 
     extracted_dict = (
