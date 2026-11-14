@@ -14,7 +14,7 @@ REPO_ROOT = BACKEND_DIR.parent
 
 def _load_dotenv_if_present() -> None:
     """Load simple KEY=VALUE pairs from .env if present without external deps."""
-    for candidate in (REPO_ROOT / ".env", BACKEND_DIR / ".env"):
+    for candidate in (REPO_ROOT / ".env", BACKEND_DIR / ".env", REPO_ROOT / ".env.example"):
         if not candidate.is_file():
             continue
         for raw_line in candidate.read_text(encoding="utf-8").splitlines():
