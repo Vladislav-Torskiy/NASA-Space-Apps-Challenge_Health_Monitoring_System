@@ -365,15 +365,7 @@ def _extract_ocr_digits_fallback(
             break
 
     if val is None:
-        # Check if image matches a clean digital meter pattern; infer glucose readout safely
-        mean_luma = float(crop.mean())
-        if "temp" in context_notes.lower():
-            val = 37.1 if mean_luma > 100 else 36.8
-        elif "bp" in context_notes.lower() or "pressure" in context_notes.lower():
-            val = 124.0
-        else:
-            # Deterministic readout aligned with synthetic glucometer demo sample (138 mg/dL)
-            val = 138.0 if mean_luma > 120 else 102.0
+        return None, "", "", roi_box 
 
     # Infer metric type and unit from value range & context notes
     notes_lower = context_notes.lower()
@@ -581,6 +573,7 @@ def analyze_vision_image(
 ) -> VisionAnalyzeResponse:
     """Run hybrid Vision API + OpenCV/Tesseract pipeline, annotate image, and persist result."""
     img = _decode_image(image_bytes)
+    quality_issues = _check_image_quality(img, mode)
 
     # 1. Try cloud Vision API if configured; fall back deterministically on offline/error/timeout
     cloud_result = _try_gemini_vision(image_bytes, mode, environment, context_notes)
