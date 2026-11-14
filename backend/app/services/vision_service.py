@@ -3,15 +3,18 @@
 from __future__ import annotations
 
 import base64
+import io
 import json
 import re
 import shutil
 import sqlite3
+import typing
 from datetime import UTC, datetime
 from typing import Any
 
 import cv2
 import numpy as np
+from PIL import Image
 
 from app.config import settings
 from app.schemas import (
@@ -55,7 +58,11 @@ def _encode_annotated_jpeg(img: np.ndarray, boxes: list[RoiBox], severity: Sever
     annotated = img.copy()
     h, w = annotated.shape[:2]
     color_bgr = (
-        (68, 68, 239) if severity == "critical" else (11, 158, 245) if severity == "caution" else (94, 197, 34)
+        (68, 68, 239)
+        if severity == "critical"
+        else (11, 158, 245)
+        if severity == "caution"
+        else (94, 197, 34)
     )
     for box in boxes:
         x1 = max(0, int(box.x * w))
@@ -105,9 +112,7 @@ def _analyze_ultrasound_opencv(img: np.ndarray) -> dict[str, Any]:
         escalation: EscalationLevel = "crew_attention"
         confidence = 0.82
         boxes = [RoiBox(x=0.28, y=0.24, w=0.44, h=0.52, label="B-line cluster region")]
-        explanation = (
-            "Detected localized vertical ultrasound artifacts (B-line pattern) suggesting mild pulmonary fluid shift or localized congestion."
-        )
+        explanation = "Detected localized vertical ultrasound artifacts (B-line pattern) suggesting mild pulmonary fluid shift or localized congestion."
         steps = [
             "Repeat scan on both lung fields in 4 hours to verify persistence.",
             "Review cabin CO2 and daily fluid intake logs.",
@@ -118,9 +123,7 @@ def _analyze_ultrasound_opencv(img: np.ndarray) -> dict[str, Any]:
         escalation = "self_care"
         confidence = 0.86
         boxes = [RoiBox(x=0.25, y=0.22, w=0.50, h=0.55, label="Pleural field nominal")]
-        explanation = (
-            "Ultrasound acoustic profile appears uniform without prominent vertical B-line clusters or fluid accumulation."
-        )
+        explanation = "Ultrasound acoustic profile appears uniform without prominent vertical B-line clusters or fluid accumulation."
         steps = [
             "Store baseline ultrasound frame for mission comparison.",
             "Continue routine hydration and resistive exercise countermeasures.",
@@ -199,9 +202,7 @@ def _analyze_skin_eye_opencv(img: np.ndarray, context_notes: str) -> dict[str, A
         escalation = "self_care"
         if not boxes:
             boxes = [RoiBox(x=0.25, y=0.25, w=0.50, h=0.50, label="Inspection region nominal")]
-        explanation = (
-            "No significant erythema or acute inflammation flare detected in the inspected skin/ocular frame."
-        )
+        explanation = "No significant erythema or acute inflammation flare detected in the inspected skin/ocular frame."
         steps = [
             "Maintain routine skin hydration and eye comfort protocol.",
             "Log any itching or blurred vision symptoms manually if they appear later.",
@@ -220,7 +221,9 @@ def _analyze_skin_eye_opencv(img: np.ndarray, context_notes: str) -> dict[str, A
     }
 
 
-def _extract_ocr_digits_fallback(img: np.ndarray, context_notes: str) -> tuple[float | None, str, str, RoiBox]:
+def _extract_ocr_digits_fallback(
+    img: np.ndarray, context_notes: str
+) -> tuple[float | None, str, str, RoiBox]:
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     h, w = gray.shape
     roi_box = RoiBox(x=0.10, y=0.14, w=0.80, h=0.66, label="LCD display region")
@@ -244,7 +247,7 @@ def _extract_ocr_digits_fallback(img: np.ndarray, context_notes: str) -> tuple[f
             )
 
     raw_text = ""
-    if is_tesseract_available():
+    if is_tesseract_available() and pytesseract is not None:
         try:
             proc = cv2.adaptiveThreshold(
                 crop, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 25, 8
@@ -310,10 +313,15 @@ def _analyze_device_ocr_opencv(img: np.ndarray, context_notes: str) -> dict[str,
     elif metric_name in ("heart_rate", "systolic_bp"):
         affected_zones = ["heart_vessels"]
 
+    if val is None:
+        extracted = None
+    else: 
+        extracted = ExtractedMetricValue(metric=metric_name, value=val, unit=unit)
+
     return {
         "severity": severity,
         "confidence": 0.88 if is_tesseract_available() else 0.79,
-        "extracted_value": ExtractedMetricValue(metric=metric_name, value=val, unit=unit),
+        "extracted_value": extracted,
         "affected_body_zones": affected_zones,
         "roi_boxes": [roi_box],
         "space_hazard_link": "Distance from Earth (Autonomous Device Telemetry Capture)",
@@ -329,6 +337,23 @@ def _analyze_device_ocr_opencv(img: np.ndarray, context_notes: str) -> dict[str,
     }
 
 
+_SUPPORTED_GEMINI_MIME_TYPES = frozenset(
+    {"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"}
+)
+
+
+def _prepare_gemini_image(image_bytes: bytes) -> tuple[bytes, str]:
+    """Return Gemini-compatible image bytes and MIME type, re-encoding unsupported formats to JPEG."""
+    with Image.open(io.BytesIO(image_bytes)) as img:
+        mime_type = Image.MIME.get(img.format or "")
+        if mime_type in _SUPPORTED_GEMINI_MIME_TYPES:
+            return image_bytes, mime_type
+        rgb_img = img.convert("RGB") if img.mode != "RGB" else img
+        buf = io.BytesIO()
+        rgb_img.save(buf, format="JPEG", quality=92)
+        return buf.getvalue(), "image/jpeg"
+
+
 def _try_gemini_vision(
     image_bytes: bytes,
     mode: VisionMode,
@@ -337,13 +362,14 @@ def _try_gemini_vision(
 ) -> dict[str, Any] | None:
     """Call Gemini Free Tier with strict JSON output; return None cleanly on any error/timeout."""
     api_key = settings.gemini_api_key
+    timeout = settings.vision_timeout_seconds
     if not api_key:
         return None
     try:
         from google import genai
         from google.genai import types
 
-        client = genai.Client(api_key=api_key)
+        client = genai.Client(api_key=api_key, http_options=types.HttpOptions(timeout=int(timeout) * 1000))
         prompt = (
             "You are ASTRA-Med, an autonomous spacecraft medical assistant grounded in NASA HRP 5 Hazards. "
             f"Analyze this image in mode='{mode}' for environment='{environment}'. "
@@ -358,10 +384,12 @@ def _try_gemini_vision(
             "action_steps (array of 2-3 short strings), "
             "escalation_level ('self_care'|'crew_attention'|'flight_surgeon')."
         )
+
+        prepared_bytes, mime_type = _prepare_gemini_image(image_bytes)
         response = client.models.generate_content(
             model=settings.gemini_model,
             contents=[
-                types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg"),
+                types.Part.from_bytes(data=prepared_bytes, mime_type=mime_type),
                 prompt,
             ],
             config=types.GenerateContentConfig(
@@ -374,17 +402,38 @@ def _try_gemini_vision(
         parsed = json.loads(response.text)
         roi_boxes = [RoiBox(**b) for b in parsed.get("roi_boxes", [])]
         ext = parsed.get("extracted_value")
-        extracted_obj = ExtractedMetricValue(**ext) if isinstance(ext, dict) and "value" in ext else None
+        extracted_obj = (
+            ExtractedMetricValue(**ext) if isinstance(ext, dict) and "value" in ext else None
+        )
+
+        allowed_severity = typing.get_args(SeverityStatus)
+        severity = parsed.get("severity", "caution")
+        if severity not in allowed_severity:
+            raise ValueError("Incorrect severity")
+
+        allowed_escalation = typing.get_args(EscalationLevel)
+        escalation = parsed.get("escalation_level", "self_care")
+        if escalation not in allowed_escalation:
+            raise ValueError("Incorrect escalation")
+
+        confidence = float(parsed.get("confidence", 0.85))
+        if not 0 <= confidence <= 1:
+            raise ValueError("Confidence out of range 0..1")
+
+        for box in roi_boxes:
+            if not (0.0 <= box.x <= 1.0 and 0.0 <= box.y <= 1.0 and 0.0 < box.w <= 1.0 and 0.0 < box.h <= 1.0):
+                raise ValueError("ROI box coordinates out of [0..1] range")
+
         return {
-            "severity": parsed.get("severity", "caution"),
-            "confidence": float(parsed.get("confidence", 0.85)),
+            "severity": severity,
+            "confidence": confidence,
             "extracted_value": extracted_obj,
             "affected_body_zones": parsed.get("affected_body_zones", ["lungs_airway"]),
             "roi_boxes": roi_boxes,
             "space_hazard_link": parsed.get("space_hazard_link", "NASA HRP Spaceflight Hazard"),
             "explanation_simple": parsed.get("explanation_simple", "Vision assessment complete."),
             "action_steps": parsed.get("action_steps", ["Monitor and repeat check."]),
-            "escalation_level": parsed.get("escalation_level", "self_care"),
+            "escalation_level": escalation,
         }
     except Exception:
         return None
