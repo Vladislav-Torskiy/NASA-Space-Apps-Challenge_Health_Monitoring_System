@@ -187,7 +187,25 @@ def _analyze_ultrasound_opencv(img: np.ndarray) -> dict[str, Any]:
         severity: SeverityStatus = "caution"
         escalation: EscalationLevel = "crew_attention"
         confidence = 0.82
-        boxes = [RoiBox(x=0.28, y=0.24, w=0.44, h=0.52, label="B-line cluster region")]
+        sector_energy = vertical_energy[c_start:c_end]
+        peak_cols = np.where(sector_energy > vertical_energy.mean() * 1.45)[0]
+        if len(peak_cols) == 0:
+            peak_cols = np.where((roi_slice > 145).any(axis=0))[0]
+        bright_rows = np.where((roi_slice > 145).any(axis=1))[0]
+
+        if len(peak_cols) > 0 and len(bright_rows) > 0:
+            pad_x, pad_y = int(w * 0.04), int(h * 0.04)
+            x1 = max(0, c_start + int(peak_cols.min()) - pad_x)
+            x2 = min(w, c_start + int(peak_cols.max()) + pad_x)
+            y1 = max(0, r_start + int(bright_rows.min()) - pad_y)
+            y2 = min(h, r_start + int(bright_rows.max()) + pad_y)
+            bx = round(x1 / w, 3)
+            by = round(y1 / h, 3)
+            bw = round(min(1.0 - bx, max(0.12, (x2 - x1) / w)), 3)
+            bh = round(min(1.0 - by, max(0.15, (y2 - y1) / h)), 3)
+            boxes = [RoiBox(x=bx, y=by, w=bw, h=bh, label="B-line cluster region")]
+        else:
+            boxes = [RoiBox(x=0.28, y=0.24, w=0.44, h=0.52, label="B-line cluster region")]
         explanation = "Detected localized vertical ultrasound artifacts (B-line pattern) suggesting mild pulmonary fluid shift or localized congestion."
         steps = [
             "Repeat scan on both lung fields in 4 hours to verify persistence.",
@@ -222,10 +240,14 @@ def _analyze_skin_eye_opencv(img: np.ndarray, context_notes: str) -> dict[str, A
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     h, w = img.shape[:2]
 
-    # Red hue wraps around 0 and 180 in OpenCV HSV
-    mask1 = cv2.inRange(hsv, np.array([0, 75, 60]), np.array([12, 255, 255]))
-    mask2 = cv2.inRange(hsv, np.array([165, 75, 60]), np.array([180, 255, 255]))
+    # Red hue wraps around 0 and 180 in OpenCV HSV; S>=95 avoids warm normal skin tones
+    mask1 = cv2.inRange(hsv, np.array([0, 95, 60]), np.array([10, 255, 255]))
+    mask2 = cv2.inRange(hsv, np.array([165, 95, 60]), np.array([180, 255, 255]))
     red_mask = cv2.bitwise_or(mask1, mask2)
+
+    morph_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    red_mask = cv2.morphologyEx(red_mask, cv2.MORPH_OPEN, morph_kernel)
+    red_mask = cv2.morphologyEx(red_mask, cv2.MORPH_CLOSE, morph_kernel)
 
     erythema_ratio = float((red_mask > 0).mean())
     contours, _ = cv2.findContours(red_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -520,15 +542,20 @@ def _try_gemini_vision(
 
         client = genai.Client(api_key=api_key, http_options=types.HttpOptions(timeout=int(timeout * 1000)))
         prompt = (
-            "You are ASTRA-Med, an autonomous spacecraft medical assistant grounded in NASA HRP 5 Hazards. "
+            "You are ASTRA-Med, an autonomous spacecraft medical decision-support assistant grounded in NASA HRP 5 Hazards. "
             f"Analyze this image in mode='{mode}' for environment='{environment}'. "
             f"Context notes: '{context_notes}'. "
-            "Never claim a definitive medical diagnosis; provide clear non-physician guidance. "
+            "Act strictly as Decision Support: never state definitive clinical diagnoses; use non-diagnostic phrasing such as "
+            "'Detected patterns consistent with...' or 'Indicates elevated risk...'. "
             "Return strictly valid JSON with keys: "
             "severity ('nominal'|'caution'|'critical'), confidence (0..1 float), "
-            "affected_body_zones (array of zone_ids), "
+            "affected_body_zones (non-empty array chosen ONLY from allowed zone_ids: "
+            "'heart_vessels', 'lungs_airway', 'bones_spine', 'kidneys_fluid', "
+            "'skin', 'immune_system', 'brain_cognition', 'eyes_sans'), "
             "roi_boxes (array of {x,y,w,h,label} normalized 0..1), "
-            "extracted_value (null or {metric, value, unit}), "
+            "extracted_value (null, or for mode='device_ocr' an object {metric, value, unit} where metric is ONLY one of: "
+            "'blood_glucose_mg_dl' with unit 'mg/dL', 'temperature_c' with unit '°C', "
+            "'heart_rate' with unit 'bpm', 'systolic_bp' with unit 'mmHg'), "
             "space_hazard_link (string), explanation_simple (string), "
             "action_steps (array of 2-3 short strings), "
             "escalation_level ('self_care'|'crew_attention'|'flight_surgeon')."
