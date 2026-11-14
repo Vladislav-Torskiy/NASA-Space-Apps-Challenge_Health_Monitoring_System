@@ -192,6 +192,7 @@ def evaluate_risk(
     latest = records[-1] if records else None
 
     metric_severities: dict[str, SeverityStatus] = {}
+    metric_values: dict[str, float] = {}
     caution_metrics: list[str] = []
     critical_metrics: list[str] = []
 
@@ -241,9 +242,7 @@ def evaluate_risk(
             continue
         label = thresholds[metric_key].label
         unit = thresholds[metric_key].unit
-        val = latest[
-            "radiation_msv" if metric_key == "radiation_msv_daily" else metric_key
-        ]
+        val = metric_values[metric_key]
         for z_id in METRIC_TO_ZONES.get(metric_key, []):
             if z_id in zone_map:
                 zone_map[z_id]["status"] = _max_severity(zone_map[z_id]["status"], sev)
