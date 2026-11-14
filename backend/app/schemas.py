@@ -223,7 +223,7 @@ class RoiBox(BaseModel):
 
 class ExtractedMetricValue(BaseModel):
     metric: str
-    value: float
+    value: float | None
     unit: str
 
 
