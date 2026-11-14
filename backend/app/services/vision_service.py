@@ -330,13 +330,13 @@ _OCR_METRIC_RANGES: dict[str, tuple[float, float, str]] = {
 def _infer_requested_ocr_metric(context_notes: str) -> str | None:
     """Return explicit metric name from context_notes if hinted, otherwise None."""
     notes_lower = context_notes.lower()
-    if "temp" in notes_lower:
+    if "temp" in notes_lower or "celsius" in notes_lower:
         return "temperature_c"
-    if "hr" in notes_lower or "pulse" in notes_lower:
+    if any(k in notes_lower for k in ("hr", "pulse", "heart", "bpm")):
         return "heart_rate"
-    if "bp" in notes_lower or "systolic" in notes_lower or "pressure" in notes_lower:
+    if any(k in notes_lower for k in ("bp", "systolic", "pressure", "mmhg")):
         return "systolic_bp"
-    if "gluc" in notes_lower or "sugar" in notes_lower:
+    if any(k in notes_lower for k in ("gluc", "sugar", "mg/dl")):
         return "blood_glucose_mg_dl"
     return None
 

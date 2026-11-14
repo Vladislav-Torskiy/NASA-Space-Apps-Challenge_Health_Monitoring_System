@@ -15,6 +15,7 @@ from app.schemas import (
 from app.services.risk_engine import evaluate_risk
 from app.services.seed_service import ensure_seeded
 from app.services.vision_service import analyze_vision_image
+from typing import cast
 
 router = APIRouter(prefix="/api", tags=["AI / Vision & Risk Engine"])
 
@@ -35,18 +36,21 @@ async def api_vision_analyze(
         ensure_seeded(conn)
         try:
             if environment is None:
-                cur = conn.cursor()
-                row = cur.execute(
+                row = conn.execute(
                     "SELECT current_environment FROM mission_state WHERE id = 1"
                 ).fetchone()
-                environment = row["current_environment"] if row else "spacecraft"
-
+                resolved_env = cast(
+                    EnvironmentType,
+                    row["current_environment"] if row else "spacecraft",
+                )
+            else:
+                resolved_env = environment
 
             return analyze_vision_image(
                 conn=conn,
                 image_bytes=image_bytes,
                 mode=mode,
-                environment=environment, # ignore
+                environment=resolved_env,
                 context_notes=context_notes,
             )
         except ValueError as exc:
