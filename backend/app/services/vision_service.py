@@ -388,7 +388,7 @@ def _try_gemini_vision(
         from google import genai
         from google.genai import types
 
-        client = genai.Client(api_key=api_key, http_options=types.HttpOptions(timeout=int(timeout) * 1000))
+        client = genai.Client(api_key=api_key, http_options=types.HttpOptions(timeout=int(timeout * 1000)))
         prompt = (
             "You are ASTRA-Med, an autonomous spacecraft medical assistant grounded in NASA HRP 5 Hazards. "
             f"Analyze this image in mode='{mode}' for environment='{environment}'. "
@@ -419,6 +419,9 @@ def _try_gemini_vision(
         if not response.text:
             return None
         parsed = json.loads(response.text)
+        if not isinstance(parsed, dict): 
+            raise ValueError("Parsed json is not dict")
+
         roi_boxes = [RoiBox(**b) for b in parsed.get("roi_boxes", [])]
         ext = parsed.get("extracted_value")
         extracted_obj = (
