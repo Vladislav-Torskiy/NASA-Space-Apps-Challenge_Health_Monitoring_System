@@ -49,11 +49,15 @@ export const api = {
       body: JSON.stringify(payload),
     }),
 
-  evaluateRisk: (environment?: EnvironmentId) =>
+  evaluateRisk: (environment?: EnvironmentId, includeLatestVision = true) =>
     request<RiskEvaluationResponse>('/api/evaluate/risk', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(environment ? { environment, include_latest_vision: true } : {}),
+      body: JSON.stringify(
+        environment
+          ? { environment, include_latest_vision: includeLatestVision }
+          : { include_latest_vision: includeLatestVision },
+      ),
     }),
 
   analyzeVision: (

@@ -24,8 +24,25 @@ def _load_dotenv_if_present() -> None:
             key, val = line.split("=", 1)
             key = key.strip()
             val = val.strip().strip('"').strip("'")
-            if key and key not in os.environ:
+            if key and val and key not in os.environ:
                 os.environ[key] = val
+
+
+def _read_dotenv_live(target_key: str) -> str | None:
+    """Read a key directly from .env files so runtime .env edits take effect immediately."""
+    for candidate in (REPO_ROOT / ".env", BACKEND_DIR / ".env"):
+        if not candidate.is_file():
+            continue
+        for raw_line in candidate.read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, val = line.split("=", 1)
+            if key.strip() == target_key:
+                cleaned = val.strip().strip('"').strip("'")
+                if cleaned:
+                    return cleaned
+    return None
 
 
 _load_dotenv_if_present()
@@ -51,15 +68,25 @@ class Settings:
 
     @property
     def gemini_api_key(self) -> str:
-        return os.getenv("GEMINI_API_KEY", "").strip()
+        if "PYTEST_CURRENT_TEST" in os.environ:
+            return os.getenv("GEMINI_API_KEY", "").strip()
+        return (_read_dotenv_live("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY", "")).strip()
 
     @property
     def gemini_model(self) -> str:
-        return os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip()
+        if "PYTEST_CURRENT_TEST" in os.environ:
+            return os.getenv("GEMINI_MODEL", "gemini-3.5-flash").strip()
+        return (
+            _read_dotenv_live("GEMINI_MODEL") or os.getenv("GEMINI_MODEL", "gemini-3.5-flash")
+        ).strip()
 
     @property
     def vision_timeout_seconds(self) -> float:
-        return float(os.getenv("VISION_TIMEOUT_SECONDS", "7"))
+        if "PYTEST_CURRENT_TEST" in os.environ:
+            return float(os.getenv("VISION_TIMEOUT_SECONDS", "15"))
+        return float(
+            _read_dotenv_live("VISION_TIMEOUT_SECONDS") or os.getenv("VISION_TIMEOUT_SECONDS", "15")
+        )
 
     @property
     def cors_origins(self) -> list[str]:

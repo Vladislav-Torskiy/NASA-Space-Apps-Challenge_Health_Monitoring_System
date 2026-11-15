@@ -693,6 +693,19 @@ def test_ultrasound_multi_organ_context_routing(client: TestClient) -> None:
     assert fname_resp.status_code == 200
     assert fname_resp.json()["affected_body_zones"] == ["heart_vessels"]
 
+    # Visual auto-detection of chambered cardiac echocardiogram without organ keywords
+    cardiac_img = np.full((240, 240, 3), 10, dtype=np.uint8)
+    cv2.rectangle(cardiac_img, (65, 25), (175, 65), (220, 220, 220), thickness=-1)
+    cv2.line(cardiac_img, (65, 110), (175, 110), (225, 225, 225), thickness=8)
+    cv2.line(cardiac_img, (120, 65), (120, 175), (210, 210, 210), thickness=6)
+    auto_resp = client.post(
+        "/api/vision/analyze",
+        files={"image": ("scan.png", _encode_png(cardiac_img), "image/png")},
+        data={"mode": "ultrasound", "environment": "spacecraft"},
+    )
+    assert auto_resp.status_code == 200
+    assert auto_resp.json()["affected_body_zones"] == ["heart_vessels"]
+
 
 def test_partial_metrics_post_from_device_ocr(client: TestClient) -> None:
     empty_resp = client.post(

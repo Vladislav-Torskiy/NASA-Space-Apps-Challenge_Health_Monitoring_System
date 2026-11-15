@@ -289,12 +289,35 @@ _DEFAULT_LUNG_ULTRASOUND_PROFILE: dict[str, Any] = {
 }
 
 
-def _resolve_ultrasound_organ_profile(context_notes: str) -> dict[str, Any]:
-    """Select organ-specific ultrasound interpretation profile from clinical context hints."""
+def _resolve_ultrasound_organ_profile(
+    context_notes: str,
+    gray: np.ndarray | None = None,
+) -> dict[str, Any]:
+    """Select organ-specific ultrasound profile from context hints or chamber structure."""
     notes_lower = context_notes.lower()
+    if "lung" in notes_lower or "pleura" in notes_lower:
+        return _DEFAULT_LUNG_ULTRASOUND_PROFILE
     for keywords, profile in _ULTRASOUND_ORGAN_PROFILES:
         if any(k in notes_lower for k in keywords):
             return profile
+
+    # Auto-detect chambered echocardiogram frames when no explicit organ hint was given
+    if gray is not None and gray.shape[0] >= 20 and gray.shape[1] >= 20:
+        h, w = gray.shape
+        roi_raw = gray[int(h * 0.2) : int(h * 0.85), int(w * 0.2) : int(w * 0.8)]
+        top_band = gray[int(h * 0.04) : int(h * 0.35), int(w * 0.25) : int(w * 0.75)]
+        dark_chamber_fraction = float((roi_raw < 40).mean())
+        bright_wall_fraction = float((roi_raw > 185).mean())
+        top_bright_fraction = float((top_band > 185).mean())
+        gx = float(np.abs(np.diff(roi_raw.astype(np.float32), axis=1)).mean())
+        gy = float(np.abs(np.diff(roi_raw.astype(np.float32), axis=0)).mean())
+        if (
+            dark_chamber_fraction > 0.30
+            and (bright_wall_fraction > 0.05 or top_bright_fraction > 0.12)
+            and gy >= gx * 0.80
+        ):
+            return _ULTRASOUND_ORGAN_PROFILES[0][1]
+
     return _DEFAULT_LUNG_ULTRASOUND_PROFILE
 
 
@@ -316,7 +339,7 @@ def _analyze_ultrasound_opencv(img: np.ndarray, context_notes: str = "") -> dict
     bright_fraction = float((roi_slice > 145).mean())
     col_peaks = int((vertical_energy[c_start:c_end] > vertical_energy.mean() * 1.45).sum())
 
-    profile = _resolve_ultrasound_organ_profile(context_notes)
+    profile = _resolve_ultrasound_organ_profile(context_notes, gray)
     is_abnormal = bool(bright_fraction > 0.14 or col_peaks >= 12)
 
     if is_abnormal:
@@ -703,7 +726,7 @@ def _try_gemini_vision(
             f"Context notes: '{context_notes}'. "
             "Act strictly as Decision Support: never state definitive clinical diagnoses; use non-diagnostic phrasing such as "
             "'Detected patterns consistent with...' or 'Indicates elevated risk...'. "
-            "Return strictly valid JSON with keys: "
+            "Return strictly a single valid JSON object (not a JSON array) with keys: "
             "severity ('nominal'|'caution'|'critical'), confidence (0..1 float), "
             "affected_body_zones (non-empty array chosen ONLY from allowed zone_ids: "
             "'heart_vessels', 'lungs_airway', 'bones_spine', 'kidneys_fluid', "
@@ -718,20 +741,50 @@ def _try_gemini_vision(
         )
 
         prepared_bytes, mime_type = _prepare_gemini_image(image_bytes)
-        response = client.models.generate_content(
-            model=settings.gemini_model,
-            contents=[
-                types.Part.from_bytes(data=prepared_bytes, mime_type=mime_type),
-                prompt,
-            ],
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                temperature=0.2,
-            ),
+        contents = [
+            types.Part.from_bytes(data=prepared_bytes, mime_type=mime_type),
+            prompt,
+        ]
+        gen_config = types.GenerateContentConfig(
+            response_mime_type="application/json",
+            temperature=0.2,
         )
-        if not response.text:
+        candidate_models = [settings.gemini_model]
+        for fallback_model in ("gemini-3.5-flash", "gemini-3.8-flash", "gemini-3.5-flash-lite"):
+            if fallback_model not in candidate_models:
+                candidate_models.append(fallback_model)
+
+        response = None
+        for model_name in candidate_models:
+            try:
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=contents,
+                    config=gen_config,
+                )
+                break
+            except Exception as model_exc:
+                err_msg = str(model_exc)
+                retryable = any(
+                    marker in err_msg
+                    for marker in (
+                        "404",
+                        "NOT_FOUND",
+                        "503",
+                        "UNAVAILABLE",
+                        "504",
+                        "DEADLINE_EXCEEDED",
+                    )
+                )
+                if retryable and model_name != candidate_models[-1]:
+                    continue
+                raise
+
+        if response is None or not response.text:
             return None
         parsed = json.loads(response.text)
+        if isinstance(parsed, list) and len(parsed) == 1 and isinstance(parsed[0], dict):
+            parsed = parsed[0]
         if not isinstance(parsed, dict):
             raise ValueError("Parsed json is not dict")
 

@@ -16,10 +16,11 @@ from app.services.seed_service import ensure_seeded
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
-    """Initialize SQLite WAL schema and seed baseline mission telemetry on startup."""
+    """Initialize SQLite WAL schema, seed baseline telemetry, and clear stale vision alerts."""
     init_db()
     with db_session() as conn:
         ensure_seeded(conn)
+        conn.execute("DELETE FROM vision_assessments;")
     yield
 
 

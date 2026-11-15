@@ -27,12 +27,14 @@ const MODES: { id: VisionMode; label: string }[] = [
 
 const TARGET_PRESETS: Record<VisionMode, { label: string; value: string }[]> = {
   ultrasound: [
+    { label: 'Auto-detect', value: '' },
     { label: 'Lung / Pleura', value: 'lung' },
     { label: 'Cardiac / Echo', value: 'cardiac echo' },
     { label: 'Kidney / Renal', value: 'kidney renal' },
     { label: 'Ocular / SANS', value: 'ocular sans' },
   ],
   skin_eye: [
+    { label: 'Auto-detect', value: '' },
     { label: 'Skin / Derm', value: 'skin' },
     { label: 'Ocular / Eye (SANS)', value: 'ocular eye sans' },
   ],

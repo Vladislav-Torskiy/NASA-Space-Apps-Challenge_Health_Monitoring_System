@@ -34,6 +34,7 @@ export function App() {
   const [completingTaskId, setCompletingTaskId] = useState<number | null>(null);
   const [recentlyUnlocked, setRecentlyUnlocked] = useState<string[]>([]);
   const [groundModalOpen, setGroundModalOpen] = useState(false);
+  const [hasSessionVision, setHasSessionVision] = useState(false);
 
   const loadAll = useCallback(
     async (requestedDays = days) => {
@@ -43,10 +44,17 @@ export function App() {
         const [dashRes, histRes, evalRes, healthRes] = await Promise.all([
           api.getDashboard(),
           api.getMetricsHistory(requestedDays),
-          api.evaluateRisk(),
+          api.evaluateRisk(undefined, false),
           api.getHealth(),
         ]);
-        setDashboard(dashRes);
+        setDashboard({
+          ...dashRes,
+          body_zones: evalRes.body_zones,
+          gamification: {
+            ...dashRes.gamification,
+            readiness_score: evalRes.readiness_score,
+          },
+        });
         setHistory(histRes);
         setEvaluation(evalRes);
         setHealth(healthRes);
@@ -72,13 +80,21 @@ export function App() {
   const handleSwitchEnvironment = async (env: EnvironmentId) => {
     setBusyAction(`env:${env}`);
     try {
-      const res = await api.switchEnvironment(env);
-      setEvaluation(res.evaluation);
-      const [dashRes, histRes] = await Promise.all([
+      await api.switchEnvironment(env);
+      const [dashRes, histRes, evalRes] = await Promise.all([
         api.getDashboard(),
         api.getMetricsHistory(days),
+        api.evaluateRisk(env, hasSessionVision),
       ]);
-      setDashboard(dashRes);
+      setEvaluation(evalRes);
+      setDashboard({
+        ...dashRes,
+        body_zones: evalRes.body_zones,
+        gamification: {
+          ...dashRes.gamification,
+          readiness_score: evalRes.readiness_score,
+        },
+      });
       setHistory(histRes);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to switch environment');
@@ -90,6 +106,9 @@ export function App() {
   const handleInjectFault = async (fault: FaultId) => {
     setBusyAction(`fault:${fault}`);
     try {
+      if (fault === 'reset_baseline') {
+        setHasSessionVision(false);
+      }
       const res = await api.injectFault(fault);
       setEvaluation(res.evaluation);
       const [dashRes, histRes] = await Promise.all([
@@ -138,12 +157,13 @@ export function App() {
     notes?: string,
   ) => {
     const res = await api.analyzeVision(image, mode, environment, notes);
+    setHasSessionVision(true);
     if (res.affected_body_zones.length > 0) {
       setSelectedZoneId(res.affected_body_zones[0]);
     }
     const [dashRes, evalRes] = await Promise.all([
       api.getDashboard(),
-      api.evaluateRisk(environment),
+      api.evaluateRisk(environment, true),
     ]);
     setDashboard(dashRes);
     setEvaluation(evalRes);
