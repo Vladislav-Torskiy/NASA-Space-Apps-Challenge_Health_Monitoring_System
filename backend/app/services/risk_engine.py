@@ -50,7 +50,11 @@ FAULT_CONTEXT: dict[str, dict[str, Any]] = {
     "co2_drift": {
         "hazard": "Hostile Closed Environments (Cabin CO2 Scrubber Drift)",
         "summary": "Elevated cabin CO2 load suspected: compensatory heart rate and systolic pressure climb detected.",
-        "zones": {"lungs_airway": "caution", "brain_cognition": "caution", "heart_vessels": "caution"},
+        "zones": {
+            "lungs_airway": "caution",
+            "brain_cognition": "caution",
+            "heart_vessels": "caution",
+        },
         "steps": [
             "Inspect CO2 scrubber cartridge / CDRA airflow immediately.",
             "Repeat blood pressure and heart rate check after 10 minutes of paced breathing in a ventilated module.",
@@ -60,7 +64,11 @@ FAULT_CONTEXT: dict[str, dict[str, Any]] = {
     "sleep_deficit": {
         "hazard": "Isolation & Confinement (Circadian Misalignment)",
         "summary": "Multi-day circadian sleep deficit detected alongside rising resting heart rate and declining mood.",
-        "zones": {"brain_cognition": "critical", "eyes_sans": "caution", "heart_vessels": "caution"},
+        "zones": {
+            "brain_cognition": "critical",
+            "eyes_sans": "caution",
+            "heart_vessels": "caution",
+        },
         "steps": [
             "Initiate circadian light-therapy reset (480nm blue-enriched wake block, dark shield before rest).",
             "Avoid caffeine within 8 hours of scheduled sleep block and defer high-risk EVA tasks.",
@@ -107,6 +115,8 @@ def compute_trends(records: list[dict[str, Any]]) -> list[TrendAlert]:
     for r in records:
         by_day[int(r["mission_day"])] = r
     daily_records = [by_day[day] for day in sorted(by_day)]
+    if len(daily_records) < 4:
+        return []
 
     recent_5 = daily_records[-5:]
     recent_14 = daily_records[-14:]
@@ -117,7 +127,7 @@ def compute_trends(records: list[dict[str, Any]]) -> list[TrendAlert]:
     mood_slope = _linear_slope([float(r["mood_score"]) for r in recent_5])
     glucose_slope = _linear_slope([float(r["blood_glucose_mg_dl"]) for r in recent_14[-7:]])
 
-    latest = records[-1]
+    latest = daily_records[-1]
     latest_sleep = float(latest["sleep_hours"])
     latest_mood = int(latest["mood_score"])
     latest_glucose = float(latest["blood_glucose_mg_dl"])
@@ -198,7 +208,8 @@ def evaluate_risk(
             LIMIT 60
         ) sub
         ORDER BY mission_day ASC, id ASC;
-        """,)
+        """,
+    )
     records = [dict(r) for r in rows]
     latest = records[-1] if records else None
 
@@ -259,6 +270,23 @@ def evaluate_risk(
                 zone_map[z_id]["status"] = _max_severity(zone_map[z_id]["status"], sev)
                 zone_map[z_id]["_reasons"].append(f"{label} {sev} ({val} {unit})")
 
+    # Multi-factor NASA HRP / CSA immune-radiation synergy
+    has_elevated_temp_and_radiation = (
+        latest is not None
+        and metric_values["temperature_c"] > thresholds["temperature_c"].nominal_max
+        and metric_values["radiation_msv_daily"] > thresholds["radiation_msv_daily"].nominal_max
+    )
+    if has_elevated_temp_and_radiation:
+        synergy_reason = (
+            "Combined elevated temperature and daily radiation (immune-radiation synergy)"
+        )
+        if "immune_system" in zone_map:
+            zone_map["immune_system"]["status"] = "critical"
+            zone_map["immune_system"]["_reasons"].append(synergy_reason)
+        if "skin" in zone_map:
+            zone_map["skin"]["status"] = _max_severity(zone_map["skin"]["status"], "caution")
+            zone_map["skin"]["_reasons"].append(synergy_reason)
+
     # Propagate trend alerts to body zones
     for alert in trend_alerts:
         for z_id in alert.affected_zones:
@@ -294,7 +322,9 @@ def evaluate_risk(
             if vision_sev != "nominal":
                 for z_id in affected:
                     if z_id in zone_map:
-                        zone_map[z_id]["status"] = _max_severity(zone_map[z_id]["status"], vision_sev)
+                        zone_map[z_id]["status"] = _max_severity(
+                            zone_map[z_id]["status"], vision_sev
+                        )
                         zone_map[z_id]["_reasons"].append(
                             f"Vision ({latest_vision_row['mode']}): {vision_sev}"
                         )
@@ -382,9 +412,7 @@ def evaluate_risk(
         action_steps = list(fc["steps"])
     elif overall_severity == "nominal" and not trend_alerts:
         env_label = rules["environments"][env]["label"]
-        what_happened = (
-            f"All vital signs and multi-day trends remain within space-adjusted baselines for {env_label}."
-        )
+        what_happened = f"All vital signs and multi-day trends remain within space-adjusted baselines for {env_label}."
         space_hazard_link = "Nominal Spaceflight Operations (NASA HRP 5 Hazards monitored)"
         action_steps = [
             "Continue scheduled ARED resistive exercise and hydration routine.",
@@ -394,18 +422,31 @@ def evaluate_risk(
         issues = [thresholds[m].label for m in critical_metrics + caution_metrics]
         trend_titles = [a.title for a in trend_alerts]
         combined = ", ".join(dict.fromkeys(issues + trend_titles)) or "Vision/telemetry anomaly"
-        what_happened = (
-            f"Detected spaceflight physiological deviation involving: {combined}."
+        what_happened = f"Detected spaceflight physiological deviation involving: {combined}."
+        if has_elevated_temp_and_radiation:
+            what_happened += (
+                " Indicates elevated risk of compounded immune-radiation response "
+                "consistent with NASA HRP Space Radiation and Altered Immune System guidelines."
+            )
+        space_hazard_link = (
+            "NASA HRP Combined Hazards (Fluid Shift / Closed Environment / Radiation)"
         )
-        space_hazard_link = "NASA HRP Combined Hazards (Fluid Shift / Closed Environment / Radiation)"
         action_steps = [
             "Re-measure flagged vital signs after 10 minutes at rest to confirm persistence.",
             "Verify cabin atmosphere (CO2/humidity) and CSA radiation dosimeter status.",
         ]
+        if has_elevated_temp_and_radiation:
+            action_steps.append(
+                "Cross-check personal CSA radiation dosimeter logs and monitor oral temperature every 4 hours."
+            )
         if escalation_level == "crew_attention":
-            action_steps.append("Notify crew partner to perform guided cross-check or assist with ultrasound.")
+            action_steps.append(
+                "Notify crew partner to perform guided cross-check or assist with ultrasound."
+            )
         elif escalation_level == "flight_surgeon":
-            action_steps.append("Use Transmit to Ground to package telemetry for Flight Surgeon review.")
+            action_steps.append(
+                "Use Transmit to Ground to package telemetry for Flight Surgeon review."
+            )
 
     return RiskEvaluationResponse(
         environment=env,
@@ -415,9 +456,7 @@ def evaluate_risk(
         what_happened_and_why=what_happened,
         space_hazard_link=space_hazard_link,
         action_steps=action_steps,
-        flagged_metrics={
-            k: v for k, v in metric_severities.items() if v != "nominal"
-        },
+        flagged_metrics={k: v for k, v in metric_severities.items() if v != "nominal"},
         trend_alerts=trend_alerts,
         body_zones=body_zones,
         latest_vision_summary=latest_vision_summary,

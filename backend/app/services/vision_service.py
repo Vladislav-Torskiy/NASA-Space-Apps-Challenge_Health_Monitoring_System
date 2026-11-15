@@ -79,11 +79,7 @@ def _check_image_quality(img: np.ndarray, mode: VisionMode) -> list[str]:
     elif mean_brightness > _MAX_BRIGHTNESS_MEAN:
         issues.append("overexposed (excessive brightness or glare)")
 
-    min_lap_var = (
-        _MIN_LAPLACIAN_VAR_SKIN_EYE
-        if mode == "skin_eye"
-        else _MIN_LAPLACIAN_VAR_DEFAULT
-    )
+    min_lap_var = _MIN_LAPLACIAN_VAR_SKIN_EYE if mode == "skin_eye" else _MIN_LAPLACIAN_VAR_DEFAULT
     if laplacian_var < min_lap_var:
         issues.append("heavily blurred or out of focus")
 
@@ -102,9 +98,7 @@ def _apply_quality_warnings(
     updated = dict(analysis)
     issues_text = ", ".join(quality_issues)
     warning_prefix = f"Image quality warning: frame appears {issues_text}. "
-    retake_step = (
-        "Retake the image in steady focus with balanced lighting and minimal glare."
-    )
+    retake_step = "Retake the image in steady focus with balanced lighting and minimal glare."
 
     if mode == "device_ocr":
         updated["extracted_value"] = None
@@ -405,9 +399,7 @@ def _build_ocr_candidates(crop: np.ndarray) -> list[np.ndarray]:
     ]
 
 
-def _parse_ocr_number(
-    raw_text: str, requested_metric: str | None
-) -> tuple[float, str, str] | None:
+def _parse_ocr_number(raw_text: str, requested_metric: str | None) -> tuple[float, str, str] | None:
     """Extract the first reading matching physiological OCR bounds."""
     numbers = re.findall(r"\d+(?:\.\d+)?", raw_text)
     if not numbers:
@@ -484,14 +476,15 @@ def evaluate_metric(
     affected_zones = METRIC_TO_ZONES.get(metric_name, default_zones)
     return severity, escalation, affected_zones
 
+
 def _analyze_device_ocr_opencv(
-        img: np.ndarray, 
-        context_notes: str, 
-        env: EnvironmentType = "spacecraft"
-    ) -> dict[str, Any]:
+    img: np.ndarray, context_notes: str, env: EnvironmentType = "spacecraft"
+) -> dict[str, Any]:
 
     val, metric_name, unit, roi_box = _extract_ocr_digits_fallback(img, context_notes)
-    severity, escalation, affected_zones = evaluate_metric(environment=env, metric_name=metric_name, val=val)
+    severity, escalation, affected_zones = evaluate_metric(
+        environment=env, metric_name=metric_name, val=val
+    )
 
     if val is None:
         extracted = None
@@ -514,11 +507,7 @@ def _analyze_device_ocr_opencv(
             "Click 'Confirm & Log' to commit the measurement and update trend risks.",
         ]
 
-    confidence = (
-        0.25
-        if val is None
-        else (0.88 if is_tesseract_available() else 0.79)
-    )
+    confidence = 0.25 if val is None else (0.88 if is_tesseract_available() else 0.79)
 
     return {
         "severity": severity,
@@ -574,7 +563,9 @@ def _try_gemini_vision(
         from google import genai
         from google.genai import types
 
-        client = genai.Client(api_key=api_key, http_options=types.HttpOptions(timeout=int(timeout * 1000)))
+        client = genai.Client(
+            api_key=api_key, http_options=types.HttpOptions(timeout=int(timeout * 1000))
+        )
         prompt = (
             "You are ASTRA-Med, an autonomous spacecraft medical decision-support assistant grounded in NASA HRP 5 Hazards. "
             f"Analyze this image in mode='{mode}' for environment='{environment}'. "
@@ -610,7 +601,7 @@ def _try_gemini_vision(
         if not response.text:
             return None
         parsed = json.loads(response.text)
-        if not isinstance(parsed, dict): 
+        if not isinstance(parsed, dict):
             raise ValueError("Parsed json is not dict")
 
         roi_boxes = [RoiBox(**b) for b in parsed.get("roi_boxes", [])]
@@ -634,7 +625,12 @@ def _try_gemini_vision(
             raise ValueError("Confidence out of range 0..1")
 
         for box in roi_boxes:
-            if not (0.0 <= box.x <= 1.0 and 0.0 <= box.y <= 1.0 and 0.0 < box.w <= 1.0 and 0.0 < box.h <= 1.0):
+            if not (
+                0.0 <= box.x <= 1.0
+                and 0.0 <= box.y <= 1.0
+                and 0.0 < box.w <= 1.0
+                and 0.0 < box.h <= 1.0
+            ):
                 raise ValueError("ROI box coordinates out of [0..1] range")
 
         affected_body_zones = _validate_str_list(

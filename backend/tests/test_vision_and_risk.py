@@ -13,7 +13,9 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
+from app.database import db_session
 from app.services import vision_service
+from app.services.risk_engine import compute_trends
 
 
 @pytest.fixture()
@@ -146,7 +148,7 @@ def test_fallback_on_gemini_429_and_timeout(
 @pytest.mark.parametrize(
     "malformed_payload",
     [
-        "[\"not\", \"a\", \"dict\"]",
+        '["not", "a", "dict"]',
         json.dumps(
             {
                 "severity": "invalid_severity",
@@ -255,7 +257,11 @@ def test_skin_eye_red_vs_neutral_synthetic(client: TestClient) -> None:
     r_neutral = client.post(
         "/api/vision/analyze",
         files={"image": ("neutral.png", neutral_png, "image/png")},
-        data={"mode": "skin_eye", "environment": "spacecraft", "context_notes": "routine skin check"},
+        data={
+            "mode": "skin_eye",
+            "environment": "spacecraft",
+            "context_notes": "routine skin check",
+        },
     )
     assert r_neutral.status_code == 200
     b_neutral = r_neutral.json()
@@ -266,7 +272,11 @@ def test_skin_eye_red_vs_neutral_synthetic(client: TestClient) -> None:
     r_red = client.post(
         "/api/vision/analyze",
         files={"image": ("red.png", red_png, "image/png")},
-        data={"mode": "skin_eye", "environment": "spacecraft", "context_notes": "redness on forearm"},
+        data={
+            "mode": "skin_eye",
+            "environment": "spacecraft",
+            "context_notes": "redness on forearm",
+        },
     )
     assert r_red.status_code == 200
     b_red = r_red.json()
@@ -371,3 +381,284 @@ def test_device_ocr_synthetic_screen_and_medical_range_validation(
             b_bad = r_bad.json()
             assert b_bad["extracted_value"] is None
             assert b_bad["confidence"] == 0.25
+
+
+# ---------------------------------------------------------------------------
+# 3. Risk Engine & NASA HRP Rules Tests (Task 6)
+# ---------------------------------------------------------------------------
+
+
+def _make_daily_record(
+    mission_day: int,
+    *,
+    heart_rate: float = 68.0,
+    systolic_bp: float = 118.0,
+    diastolic_bp: float = 76.0,
+    blood_glucose_mg_dl: float = 94.0,
+    temperature_c: float = 36.7,
+    sleep_hours: float = 6.8,
+    mood_score: int = 8,
+    radiation_msv: float = 0.59,
+) -> dict[str, Any]:
+    return {
+        "mission_day": mission_day,
+        "heart_rate": heart_rate,
+        "systolic_bp": systolic_bp,
+        "diastolic_bp": diastolic_bp,
+        "blood_glucose_mg_dl": blood_glucose_mg_dl,
+        "temperature_c": temperature_c,
+        "sleep_hours": sleep_hours,
+        "mood_score": mood_score,
+        "radiation_msv": radiation_msv,
+    }
+
+
+def _insert_metric_row(conn: Any, rec: dict[str, Any], *, environment: str = "spacecraft") -> None:
+    conn.execute(
+        """
+        INSERT INTO health_metrics (
+            timestamp, mission_day, environment, heart_rate, systolic_bp, diastolic_bp,
+            blood_glucose_mg_dl, temperature_c, sleep_hours, mood_score, radiation_msv, source, notes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+        """,
+        (
+            f"2026-11-{min(28, rec['mission_day']):02d}T12:00:00+00:00",
+            rec["mission_day"],
+            environment,
+            rec["heart_rate"],
+            rec["systolic_bp"],
+            rec["diastolic_bp"],
+            rec["blood_glucose_mg_dl"],
+            rec["temperature_c"],
+            rec["sleep_hours"],
+            rec["mood_score"],
+            rec["radiation_msv"],
+            "test_seed",
+            "synthetic risk test",
+        ),
+    )
+
+
+def test_risk_trend_circadian_behavioral_drift(client: TestClient) -> None:
+    # 5-day sleep decline + resting HR rise triggers circadian_behavioral_drift even without critical points
+    sleep_seq = [6.8, 6.3, 5.9, 5.5, 5.1]
+    hr_seq = [68.0, 71.0, 74.0, 77.0, 80.0]
+    records = [
+        _make_daily_record(day, sleep_hours=sleep_h, heart_rate=hr, mood_score=7)
+        for day, sleep_h, hr in zip(range(1, 6), sleep_seq, hr_seq, strict=True)
+    ]
+    alerts = compute_trends(records)
+    circadian = [a for a in alerts if a.code == "circadian_behavioral_drift"]
+    assert len(circadian) == 1
+    assert circadian[0].severity == "caution"
+    assert circadian[0].slope_per_day < -0.25
+    assert circadian[0].affected_zones == ["brain_cognition", "eyes_sans", "heart_vessels"]
+
+    # Verify integration through SQLite + /api/evaluate/risk
+    assert client.get("/api/health").status_code == 200
+    with db_session() as conn:
+        for offset, (sleep_h, hr) in enumerate(zip(sleep_seq, hr_seq, strict=True), start=1):
+            _insert_metric_row(
+                conn,
+                _make_daily_record(24 + offset, sleep_hours=sleep_h, heart_rate=hr, mood_score=7),
+            )
+        conn.execute("UPDATE mission_state SET mission_day = 29 WHERE id = 1;")
+
+    eval_resp = client.post("/api/evaluate/risk", json={"include_latest_vision": False})
+    assert eval_resp.status_code == 200
+    body = eval_resp.json()
+    assert any(a["code"] == "circadian_behavioral_drift" for a in body["trend_alerts"])
+    assert body["escalation_level"] == "crew_attention"
+    zones = {z["zone_id"]: z["status"] for z in body["body_zones"]}
+    assert zones["brain_cognition"] == "caution"
+    assert zones["eyes_sans"] == "caution"
+    assert zones["heart_vessels"] == "caution"
+
+
+def test_risk_trend_metabolic_glucose_drift(client: TestClient) -> None:
+    glucose_caution = [95.0, 100.0, 106.0, 112.0, 118.0, 124.0, 130.0]
+    records_caution = [
+        _make_daily_record(day, blood_glucose_mg_dl=g)
+        for day, g in enumerate(glucose_caution, start=1)
+    ]
+    alerts_caution = compute_trends(records_caution)
+    metabolic_caution = [a for a in alerts_caution if a.code == "metabolic_glucose_drift"]
+    assert len(metabolic_caution) == 1
+    assert metabolic_caution[0].severity == "caution"
+    assert metabolic_caution[0].slope_per_day >= 3.5
+    assert metabolic_caution[0].affected_zones == ["kidneys_fluid", "bones_spine"]
+
+    # Exceeding 145 mg/dL escalates the trend alert to critical
+    glucose_critical = [95.0, 102.0, 110.0, 118.0, 127.0, 138.0, 150.0]
+    records_critical = [
+        _make_daily_record(day, blood_glucose_mg_dl=g)
+        for day, g in enumerate(glucose_critical, start=1)
+    ]
+    alerts_critical = compute_trends(records_critical)
+    metabolic_critical = [a for a in alerts_critical if a.code == "metabolic_glucose_drift"]
+    assert len(metabolic_critical) == 1
+    assert metabolic_critical[0].severity == "critical"
+
+    # End-to-end check via /api/evaluate/risk
+    assert client.get("/api/health").status_code == 200
+    with db_session() as conn:
+        for offset, g in enumerate(glucose_caution, start=1):
+            _insert_metric_row(
+                conn,
+                _make_daily_record(24 + offset, blood_glucose_mg_dl=g),
+            )
+        conn.execute("UPDATE mission_state SET mission_day = 31 WHERE id = 1;")
+
+    eval_resp = client.post("/api/evaluate/risk", json={"include_latest_vision": False})
+    assert eval_resp.status_code == 200
+    body = eval_resp.json()
+    assert any(a["code"] == "metabolic_glucose_drift" for a in body["trend_alerts"])
+    zones = {z["zone_id"]: z["status"] for z in body["body_zones"]}
+    assert zones["kidneys_fluid"] == "caution"
+    assert zones["bones_spine"] == "caution"
+
+
+def test_multiple_measurements_per_mission_day_do_not_break_trends(client: TestClient) -> None:
+    # 6 records across only 2 distinct mission days must not trigger 5-day trend alerts
+    same_day_records = [
+        _make_daily_record(1, sleep_hours=7.5, heart_rate=65.0),
+        _make_daily_record(1, sleep_hours=6.5, heart_rate=70.0),
+        _make_daily_record(1, sleep_hours=5.5, heart_rate=75.0),
+        _make_daily_record(2, sleep_hours=5.0, heart_rate=80.0),
+        _make_daily_record(2, sleep_hours=4.5, heart_rate=85.0),
+        _make_daily_record(2, sleep_hours=4.0, heart_rate=90.0),
+    ]
+    assert compute_trends(same_day_records) == []
+
+    # Extra intra-day measurements on the final day must not change the daily slope_per_day
+    base_5_days = [
+        _make_daily_record(day, sleep_hours=s, heart_rate=hr, mood_score=7)
+        for day, s, hr in zip(
+            range(1, 6),
+            [7.0, 6.6, 6.2, 5.8, 5.4],
+            [68.0, 71.0, 74.0, 77.0, 80.0],
+            strict=True,
+        )
+    ]
+    with_intraday = [
+        *base_5_days,
+        _make_daily_record(5, sleep_hours=5.4, heart_rate=80.0, mood_score=7),
+        _make_daily_record(5, sleep_hours=5.4, heart_rate=80.0, mood_score=7),
+        _make_daily_record(5, sleep_hours=5.4, heart_rate=80.0, mood_score=7),
+    ]
+    base_alert = compute_trends(base_5_days)[0]
+    intraday_alert = compute_trends(with_intraday)[0]
+    assert base_alert.code == intraday_alert.code == "circadian_behavioral_drift"
+    assert base_alert.slope_per_day == intraday_alert.slope_per_day == pytest.approx(-0.4, abs=1e-3)
+
+    # Posting multiple nominal readings on Day 24 via API must produce zero trend alerts
+    for _ in range(4):
+        post_resp = client.post(
+            "/api/metrics",
+            json={
+                "heart_rate": 68,
+                "systolic_bp": 118,
+                "diastolic_bp": 76,
+                "blood_glucose_mg_dl": 94,
+                "temperature_c": 36.7,
+                "sleep_hours": 6.8,
+                "mood_score": 8,
+                "radiation_msv_daily": 0.59,
+                "notes": "Intra-day repeat check",
+                "source": "manual",
+            },
+        )
+        assert post_resp.status_code == 200
+        assert post_resp.json()["evaluation"]["trend_alerts"] == []
+
+
+def test_evaluate_risk_with_over_60_records_uses_newest_record(client: TestClient) -> None:
+    assert client.get("/api/health").status_code == 200
+    with db_session() as conn:
+        for day in range(25, 70):
+            _insert_metric_row(conn, _make_daily_record(day))
+        _insert_metric_row(
+            conn,
+            _make_daily_record(70, heart_rate=115.0, radiation_msv=3.2),
+        )
+        conn.execute("UPDATE mission_state SET mission_day = 70 WHERE id = 1;")
+        total_rows = conn.execute("SELECT COUNT(*) AS cnt FROM health_metrics;").fetchone()["cnt"]
+        assert total_rows == 70
+
+    eval_resp = client.post("/api/evaluate/risk", json={"include_latest_vision": False})
+    assert eval_resp.status_code == 200
+    body = eval_resp.json()
+    assert body["overall_severity"] == "critical"
+    assert body["escalation_level"] == "flight_surgeon"
+    assert body["flagged_metrics"]["heart_rate"] == "critical"
+    assert body["flagged_metrics"]["radiation_msv_daily"] == "critical"
+
+
+def test_environment_switch_rover_vs_spacecraft_changes_evaluation(client: TestClient) -> None:
+    eva_metrics = {
+        "heart_rate": 105,
+        "systolic_bp": 135,
+        "diastolic_bp": 84,
+        "blood_glucose_mg_dl": 120,
+        "temperature_c": 37.5,
+        "sleep_hours": 6.5,
+        "mood_score": 7,
+        "radiation_msv_daily": 0.8,
+        "notes": "EVA exertion telemetry",
+        "source": "manual",
+    }
+    post_resp = client.post("/api/metrics", json=eva_metrics)
+    assert post_resp.status_code == 200
+    eval_spacecraft = post_resp.json()["evaluation"]
+    assert eval_spacecraft["environment"] == "spacecraft"
+    assert eval_spacecraft["overall_severity"] == "critical"
+    assert eval_spacecraft["escalation_level"] == "flight_surgeon"
+    assert eval_spacecraft["flagged_metrics"]["heart_rate"] == "critical"
+
+    switch_resp = client.post("/api/mission/environment", json={"environment": "rover"})
+    assert switch_resp.status_code == 200
+    eval_rover = switch_resp.json()["evaluation"]
+    assert eval_rover["environment"] == "rover"
+    assert eval_rover["overall_severity"] == "nominal"
+    assert eval_rover["escalation_level"] == "self_care"
+    assert eval_rover["flagged_metrics"] == {}
+    assert eval_rover["readiness_score"] > eval_spacecraft["readiness_score"]
+
+
+def test_multifactor_temperature_and_radiation_synergy(client: TestClient) -> None:
+    # Both temperature (37.5 C) and radiation (1.8 mSv/day) are only caution individually in spacecraft,
+    # yet together they elevate immune_system to critical and skin to caution via NASA HRP/CSA synergy.
+    post_resp = client.post(
+        "/api/metrics",
+        json={
+            "heart_rate": 72,
+            "systolic_bp": 120,
+            "diastolic_bp": 78,
+            "blood_glucose_mg_dl": 96,
+            "temperature_c": 37.5,
+            "sleep_hours": 6.8,
+            "mood_score": 8,
+            "radiation_msv_daily": 1.8,
+            "notes": "Post-transit mild fever and elevated dosimeter reading",
+            "source": "manual",
+        },
+    )
+    assert post_resp.status_code == 200
+    evaluation = post_resp.json()["evaluation"]
+    assert evaluation["flagged_metrics"] == {
+        "temperature_c": "caution",
+        "radiation_msv_daily": "caution",
+    }
+    zones = {z["zone_id"]: z for z in evaluation["body_zones"]}
+    assert zones["immune_system"]["status"] == "critical"
+    assert zones["skin"]["status"] == "caution"
+    assert "immune-radiation synergy" in zones["immune_system"]["summary"]
+    assert evaluation["overall_severity"] == "critical"
+    assert evaluation["escalation_level"] == "flight_surgeon"
+
+    explanation = evaluation["what_happened_and_why"]
+    assert "Detected spaceflight physiological deviation involving:" in explanation
+    assert "Indicates elevated risk of compounded immune-radiation response" in explanation
+    assert "definitely" not in explanation.lower()
+    assert "diagnosis" not in explanation.lower()
+    assert any("CSA radiation dosimeter" in step for step in evaluation["action_steps"])
