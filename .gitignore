@@ -28,3 +28,6 @@ Thumbs.db
 # Personal files
 /AGENTS.md
 /ROLE3_TASKS.md
+# Frontend local artifacts
+*.tsbuildinfo
+.env.local
