@@ -100,7 +100,7 @@ def test_fallback_when_gemini_api_key_empty(
     )
     assert resp.status_code == 200
     body = resp.json()
-    assert body["provider_used"] in ("offline_opencv", "offline_opencv_tesseract")
+    assert body["provider_used"] == "opencv_fallback"
     assert body["severity"] == "caution"
 
 
@@ -138,7 +138,7 @@ def test_fallback_on_gemini_429_and_timeout(
     )
     assert resp.status_code == 200
     body = resp.json()
-    assert body["provider_used"] in ("offline_opencv", "offline_opencv_tesseract")
+    assert body["provider_used"] == "opencv_fallback"
     assert body["severity"] in ("caution", "critical")
 
 
@@ -240,7 +240,7 @@ def test_fallback_on_malformed_gemini_json(
     )
     assert resp.status_code == 200
     body = resp.json()
-    assert body["provider_used"] in ("offline_opencv", "offline_opencv_tesseract")
+    assert body["provider_used"] == "opencv_fallback"
     assert body["mode"] == "ultrasound"
 
 

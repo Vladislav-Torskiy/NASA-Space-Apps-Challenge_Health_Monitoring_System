@@ -259,7 +259,7 @@ flowchart TB
 ```json
 {
   "mode": "device_ocr",
-  "provider_used": "offline_opencv",
+  "provider_used": "opencv_fallback",
   "severity": "caution",
   "confidence": 0.79,
   "extracted_value": {

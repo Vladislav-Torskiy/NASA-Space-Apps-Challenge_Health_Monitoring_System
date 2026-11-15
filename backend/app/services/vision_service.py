@@ -649,7 +649,7 @@ def analyze_vision_image(
         provider_used = "gemini_free"
         analysis = cloud_result
     else:
-        provider_used = "offline_opencv_tesseract" if is_tesseract_available() else "offline_opencv"
+        provider_used = "opencv_fallback"
         if mode == "ultrasound":
             analysis = _analyze_ultrasound_opencv(img)
         elif mode == "skin_eye":
