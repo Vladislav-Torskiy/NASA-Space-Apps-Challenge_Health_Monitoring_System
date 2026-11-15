@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Generator
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
-from collections.abc import Generator
 
 import cv2
 import numpy as np
