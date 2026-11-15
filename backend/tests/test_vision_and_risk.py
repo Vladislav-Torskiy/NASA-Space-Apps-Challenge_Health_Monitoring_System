@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
+from collections.abc import Generator
 
 import cv2
 import numpy as np
@@ -16,7 +17,7 @@ from app.services import vision_service
 
 
 @pytest.fixture()
-def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
+def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[TestClient, Any, Any]:
     db_file = tmp_path / "test_vision_risk.db"
     monkeypatch.setenv("SQLITE_DB_PATH", str(db_file))
     monkeypatch.setenv("GEMINI_API_KEY", "")
