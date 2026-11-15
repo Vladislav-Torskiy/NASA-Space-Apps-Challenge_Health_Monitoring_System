@@ -662,3 +662,56 @@ def test_multifactor_temperature_and_radiation_synergy(client: TestClient) -> No
     assert "definitely" not in explanation.lower()
     assert "diagnosis" not in explanation.lower()
     assert any("CSA radiation dosimeter" in step for step in evaluation["action_steps"])
+
+
+def test_ultrasound_multi_organ_context_routing(client: TestClient) -> None:
+    us_bytes = _encode_png(_make_b_line_ultrasound_image())
+
+    cases = [
+        ("cardiac echo", "heart_vessels", "Cardiac chamber / septal ROI"),
+        ("kidney renal", "kidneys_fluid", "Renal pelvis / echogenic focus ROI"),
+        ("ocular sans", "eyes_sans", "Optic nerve sheath (ONSD) ROI"),
+    ]
+    for notes, expected_zone, expected_label in cases:
+        resp = client.post(
+            "/api/vision/analyze",
+            files={"image": ("scan.png", us_bytes, "image/png")},
+            data={"mode": "ultrasound", "environment": "spacecraft", "context_notes": notes},
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["provider_used"] == "opencv_fallback"
+        assert body["affected_body_zones"] == [expected_zone]
+        assert body["roi_boxes"][0]["label"] == expected_label
+
+    # Filename fallback when context_notes is empty
+    fname_resp = client.post(
+        "/api/vision/analyze",
+        files={"image": ("apical_heart_echo.png", us_bytes, "image/png")},
+        data={"mode": "ultrasound", "environment": "spacecraft"},
+    )
+    assert fname_resp.status_code == 200
+    assert fname_resp.json()["affected_body_zones"] == ["heart_vessels"]
+
+
+def test_partial_metrics_post_from_device_ocr(client: TestClient) -> None:
+    empty_resp = client.post(
+        "/api/metrics",
+        json={"source": "device_ocr", "notes": "No metrics provided"},
+    )
+    assert empty_resp.status_code == 400
+
+    ocr_resp = client.post(
+        "/api/metrics",
+        json={
+            "blood_glucose_mg_dl": 138,
+            "source": "device_ocr",
+            "notes": "Confirmed via Device OCR (138 mg/dL)",
+        },
+    )
+    assert ocr_resp.status_code == 200
+    data = ocr_resp.json()
+    assert data["record"]["blood_glucose_mg_dl"] == 138
+    assert data["record"]["heart_rate"] == 68
+    assert data["record"]["source"] == "device_ocr"
+    assert data["evaluation"]["flagged_metrics"]["blood_glucose_mg_dl"] == "caution"

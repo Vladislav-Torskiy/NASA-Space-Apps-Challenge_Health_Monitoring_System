@@ -159,7 +159,146 @@ def _encode_annotated_jpeg(img: np.ndarray, boxes: list[RoiBox], severity: Sever
     return f"data:image/jpeg;base64,{b64}"
 
 
-def _analyze_ultrasound_opencv(img: np.ndarray) -> dict[str, Any]:
+_ULTRASOUND_ORGAN_PROFILES: list[tuple[tuple[str, ...], dict[str, Any]]] = [
+    (
+        ("heart", "cardiac", "echo", "ventricle", "atrium", "apical", "pericard"),
+        {
+            "zones": ["heart_vessels"],
+            "hazard": "Gravity Fields (Cephalad Fluid Shift & Cardiac Remodeling)",
+            "abnormal": {
+                "confidence": 0.83,
+                "label": "Cardiac chamber / septal ROI",
+                "explanation": (
+                    "Detected elevated myocardial/pericardial acoustic reflectance and chamber volume shift "
+                    "consistent with microgravity cephalad fluid redistribution."
+                ),
+                "steps": [
+                    "Record resting blood pressure and heart rate after 10 minutes in neutral posture.",
+                    "Compare left ventricular chamber contour against baseline mission scan.",
+                    "Transmit cardiac frame to Flight Surgeon if palpitations or chest pressure occur.",
+                ],
+            },
+            "nominal": {
+                "confidence": 0.86,
+                "label": "Cardiac 4-chamber view nominal",
+                "explanation": (
+                    "Cardiac chamber geometry and myocardial wall reflectivity appear within spaceflight baseline "
+                    "without pericardial fluid collection."
+                ),
+                "steps": [
+                    "Archive baseline echocardiogram frame to mission log.",
+                    "Continue scheduled aerobic and resistive exercise countermeasures.",
+                ],
+            },
+        },
+    ),
+    (
+        ("kidney", "renal", "bladder", "stone", "nephro", "hydronephrosis"),
+        {
+            "zones": ["kidneys_fluid"],
+            "hazard": "Gravity Fields & Nutrition (Bone Calcium Mobilization / Renal Stone Risk)",
+            "abnormal": {
+                "confidence": 0.82,
+                "label": "Renal pelvis / echogenic focus ROI",
+                "explanation": (
+                    "Detected localized hyperechoic focus or mild pelvicalyceal prominence "
+                    "suggesting elevated renal stone or urinary stasis risk."
+                ),
+                "steps": [
+                    "Increase oral water intake by 500 mL over the next 4 hours.",
+                    "Perform contralateral kidney and bladder sweep to assess urinary retention.",
+                    "Log urine output and notify Crew Medical Officer if flank discomfort develops.",
+                ],
+            },
+            "nominal": {
+                "confidence": 0.86,
+                "label": "Renal parenchyma nominal",
+                "explanation": (
+                    "Renal cortical echogenicity and collecting system appear clear "
+                    "without acoustic shadowing or hydronephrosis."
+                ),
+                "steps": [
+                    "Maintain daily hydration target and scheduled ARED resistive exercise.",
+                    "Store renal scan for routine mission comparison.",
+                ],
+            },
+        },
+    ),
+    (
+        ("eye", "ocular", "optic", "onsd", "sans", "retina"),
+        {
+            "zones": ["eyes_sans"],
+            "hazard": "Gravity Fields (Spaceflight-Associated Neuro-ocular Syndrome — SANS)",
+            "abnormal": {
+                "confidence": 0.84,
+                "label": "Optic nerve sheath (ONSD) ROI",
+                "explanation": (
+                    "Detected retrobulbar optic nerve sheath prominence or posterior globe flattening patterns "
+                    "consistent with microgravity SANS fluid shift."
+                ),
+                "steps": [
+                    "Perform visual acuity and Amsler grid self-assessment on both eyes.",
+                    "Check cabin CO2 levels and log any headache or visual distortion.",
+                    "Schedule Flight Surgeon tele-ophthalmology review with annotated ONSD frame.",
+                ],
+            },
+            "nominal": {
+                "confidence": 0.87,
+                "label": "Ocular / ONSD profile nominal",
+                "explanation": (
+                    "Retrobulbar optic nerve sheath contour and posterior sclera appear symmetric "
+                    "without acute SANS distension."
+                ),
+                "steps": [
+                    "Save baseline ocular ultrasound measurement to mission medical log.",
+                    "Continue routine visual checks and cabin CO2 monitoring.",
+                ],
+            },
+        },
+    ),
+]
+
+_DEFAULT_LUNG_ULTRASOUND_PROFILE: dict[str, Any] = {
+    "zones": ["lungs_airway"],
+    "hazard": "Hostile Closed Environments / Microgravity fluid shift",
+    "abnormal": {
+        "confidence": 0.82,
+        "label": "B-line cluster region",
+        "explanation": (
+            "Detected localized vertical ultrasound artifacts (B-line pattern) "
+            "suggesting mild pulmonary fluid shift or localized congestion."
+        ),
+        "steps": [
+            "Repeat scan on both lung fields in 4 hours to verify persistence.",
+            "Review cabin CO2 and daily fluid intake logs.",
+            "Ask crew medical officer to inspect breathing rate and auscultation.",
+        ],
+    },
+    "nominal": {
+        "confidence": 0.86,
+        "label": "Pleural field nominal",
+        "explanation": (
+            "Ultrasound acoustic profile appears uniform without prominent vertical "
+            "B-line clusters or fluid accumulation."
+        ),
+        "steps": [
+            "Store baseline ultrasound frame for mission comparison.",
+            "Continue routine hydration and resistive exercise countermeasures.",
+        ],
+    },
+}
+
+
+def _resolve_ultrasound_organ_profile(context_notes: str) -> dict[str, Any]:
+    """Select organ-specific ultrasound interpretation profile from clinical context hints."""
+    notes_lower = context_notes.lower()
+    for keywords, profile in _ULTRASOUND_ORGAN_PROFILES:
+        if any(k in notes_lower for k in keywords):
+            return profile
+    return _DEFAULT_LUNG_ULTRASOUND_PROFILE
+
+
+def _analyze_ultrasound_opencv(img: np.ndarray, context_notes: str = "") -> dict[str, Any]:
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     clahe = cv2.createCLAHE(clipLimit=2.2, tileGridSize=(8, 8))
     enhanced = clahe.apply(gray)
@@ -177,10 +316,13 @@ def _analyze_ultrasound_opencv(img: np.ndarray) -> dict[str, Any]:
     bright_fraction = float((roi_slice > 145).mean())
     col_peaks = int((vertical_energy[c_start:c_end] > vertical_energy.mean() * 1.45).sum())
 
-    if bright_fraction > 0.14 or col_peaks >= 12:
+    profile = _resolve_ultrasound_organ_profile(context_notes)
+    is_abnormal = bool(bright_fraction > 0.14 or col_peaks >= 12)
+
+    if is_abnormal:
         severity: SeverityStatus = "caution"
         escalation: EscalationLevel = "crew_attention"
-        confidence = 0.82
+        cfg = profile["abnormal"]
         sector_energy = vertical_energy[c_start:c_end]
         peak_cols = np.where(sector_energy > vertical_energy.mean() * 1.45)[0]
         if len(peak_cols) == 0:
@@ -197,35 +339,24 @@ def _analyze_ultrasound_opencv(img: np.ndarray) -> dict[str, Any]:
             by = round(y1 / h, 3)
             bw = round(min(1.0 - bx, max(0.12, (x2 - x1) / w)), 3)
             bh = round(min(1.0 - by, max(0.15, (y2 - y1) / h)), 3)
-            boxes = [RoiBox(x=bx, y=by, w=bw, h=bh, label="B-line cluster region")]
+            boxes = [RoiBox(x=bx, y=by, w=bw, h=bh, label=cfg["label"])]
         else:
-            boxes = [RoiBox(x=0.28, y=0.24, w=0.44, h=0.52, label="B-line cluster region")]
-        explanation = "Detected localized vertical ultrasound artifacts (B-line pattern) suggesting mild pulmonary fluid shift or localized congestion."
-        steps = [
-            "Repeat scan on both lung fields in 4 hours to verify persistence.",
-            "Review cabin CO2 and daily fluid intake logs.",
-            "Ask crew medical officer to inspect breathing rate and auscultation.",
-        ]
+            boxes = [RoiBox(x=0.28, y=0.24, w=0.44, h=0.52, label=cfg["label"])]
     else:
         severity = "nominal"
         escalation = "self_care"
-        confidence = 0.86
-        boxes = [RoiBox(x=0.25, y=0.22, w=0.50, h=0.55, label="Pleural field nominal")]
-        explanation = "Ultrasound acoustic profile appears uniform without prominent vertical B-line clusters or fluid accumulation."
-        steps = [
-            "Store baseline ultrasound frame for mission comparison.",
-            "Continue routine hydration and resistive exercise countermeasures.",
-        ]
+        cfg = profile["nominal"]
+        boxes = [RoiBox(x=0.25, y=0.22, w=0.50, h=0.55, label=cfg["label"])]
 
     return {
         "severity": severity,
-        "confidence": confidence,
+        "confidence": cfg["confidence"],
         "extracted_value": None,
-        "affected_body_zones": ["lungs_airway"],
+        "affected_body_zones": list(profile["zones"]),
         "roi_boxes": boxes,
-        "space_hazard_link": "Hostile Closed Environments / Microgravity fluid shift",
-        "explanation_simple": explanation,
-        "action_steps": steps,
+        "space_hazard_link": profile["hazard"],
+        "explanation_simple": cfg["explanation"],
+        "action_steps": list(cfg["steps"]),
         "escalation_level": escalation,
     }
 
@@ -681,7 +812,7 @@ def analyze_vision_image(
     else:
         provider_used = "opencv_fallback"
         if mode == "ultrasound":
-            analysis = _analyze_ultrasound_opencv(img)
+            analysis = _analyze_ultrasound_opencv(img, context_notes)
         elif mode == "skin_eye":
             analysis = _analyze_skin_eye_opencv(img, context_notes)
         elif mode == "device_ocr":

@@ -131,14 +131,14 @@ class MetricsHistoryResponse(BaseModel):
 
 
 class MetricCreateRequest(BaseModel):
-    heart_rate: float = Field(..., ge=25, le=240)
-    systolic_bp: float = Field(..., ge=50, le=260)
-    diastolic_bp: float = Field(..., ge=30, le=160)
-    blood_glucose_mg_dl: float = Field(..., ge=20, le=600)
-    temperature_c: float = Field(..., ge=32.0, le=43.0)
-    sleep_hours: float = Field(..., ge=0.0, le=24.0)
-    mood_score: int = Field(..., ge=1, le=10)
-    radiation_msv_daily: float = Field(..., ge=0.0, le=100.0)
+    heart_rate: float | None = Field(default=None, ge=25, le=240)
+    systolic_bp: float | None = Field(default=None, ge=50, le=260)
+    diastolic_bp: float | None = Field(default=None, ge=30, le=160)
+    blood_glucose_mg_dl: float | None = Field(default=None, ge=20, le=600)
+    temperature_c: float | None = Field(default=None, ge=32.0, le=43.0)
+    sleep_hours: float | None = Field(default=None, ge=0.0, le=24.0)
+    mood_score: int | None = Field(default=None, ge=1, le=10)
+    radiation_msv_daily: float | None = Field(default=None, ge=0.0, le=100.0)
     notes: str = ""
     source: str = "manual"
 

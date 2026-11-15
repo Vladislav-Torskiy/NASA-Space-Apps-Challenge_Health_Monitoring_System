@@ -106,7 +106,22 @@ export function App() {
   };
 
   const handleSubmitMetrics = async (payload: PostMetricsPayload) => {
-    const res = await api.postMetrics(payload);
+    const latest = dashboard?.latest_metrics;
+    const mergedPayload: PostMetricsPayload = latest
+      ? {
+          heart_rate: payload.heart_rate ?? latest.heart_rate,
+          systolic_bp: payload.systolic_bp ?? latest.systolic_bp,
+          diastolic_bp: payload.diastolic_bp ?? latest.diastolic_bp,
+          blood_glucose_mg_dl: payload.blood_glucose_mg_dl ?? latest.blood_glucose_mg_dl,
+          temperature_c: payload.temperature_c ?? latest.temperature_c,
+          sleep_hours: payload.sleep_hours ?? latest.sleep_hours,
+          mood_score: payload.mood_score ?? latest.mood_score,
+          radiation_msv_daily: payload.radiation_msv_daily ?? latest.radiation_msv_daily ?? 0.6,
+          source: payload.source,
+          notes: payload.notes,
+        }
+      : payload;
+    const res = await api.postMetrics(mergedPayload);
     setEvaluation(res.evaluation);
     const [dashRes, histRes] = await Promise.all([
       api.getDashboard(),
@@ -123,6 +138,9 @@ export function App() {
     notes?: string,
   ) => {
     const res = await api.analyzeVision(image, mode, environment, notes);
+    if (res.affected_body_zones.length > 0) {
+      setSelectedZoneId(res.affected_body_zones[0]);
+    }
     const [dashRes, evalRes] = await Promise.all([
       api.getDashboard(),
       api.evaluateRisk(environment),

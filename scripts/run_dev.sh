@@ -22,6 +22,10 @@ echo "[ASTRA-Med] Starting FastAPI backend on http://127.0.0.1:8000 (Swagger: /d
 BACK_PID=$!
 
 if [ -f "$FRONTEND_DIR/package.json" ]; then
+  if [ ! -d "$FRONTEND_DIR/node_modules" ]; then
+    echo "[ASTRA-Med] Installing frontend dependencies..."
+    (cd "$FRONTEND_DIR" && npm install)
+  fi
   echo "[ASTRA-Med] Starting Vite frontend on http://127.0.0.1:5173..."
   (cd "$FRONTEND_DIR" && npm run dev -- --host 0.0.0.0 --port 5173) &
   FRONT_PID=$!

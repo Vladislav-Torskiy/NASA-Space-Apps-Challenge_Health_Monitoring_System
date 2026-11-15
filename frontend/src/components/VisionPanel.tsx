@@ -25,6 +25,26 @@ const MODES: { id: VisionMode; label: string }[] = [
   { id: 'device_ocr', label: 'Device Display OCR' },
 ];
 
+const TARGET_PRESETS: Record<VisionMode, { label: string; value: string }[]> = {
+  ultrasound: [
+    { label: 'Lung / Pleura', value: 'lung' },
+    { label: 'Cardiac / Echo', value: 'cardiac echo' },
+    { label: 'Kidney / Renal', value: 'kidney renal' },
+    { label: 'Ocular / SANS', value: 'ocular sans' },
+  ],
+  skin_eye: [
+    { label: 'Skin / Derm', value: 'skin' },
+    { label: 'Ocular / Eye (SANS)', value: 'ocular eye sans' },
+  ],
+  device_ocr: [
+    { label: 'Auto-detect', value: '' },
+    { label: 'Glucose (mg/dL)', value: 'glucose' },
+    { label: 'Temp (°C)', value: 'temperature' },
+    { label: 'Heart Rate (bpm)', value: 'heart rate bpm' },
+    { label: 'Systolic BP (mmHg)', value: 'systolic bp mmhg' },
+  ],
+};
+
 const ESCALATION_BANNER: Record<EscalationLevel, { label: string; cls: string }> = {
   self_care: {
     label: 'Level 1: Self-Care Protocol',
@@ -42,6 +62,8 @@ const ESCALATION_BANNER: Record<EscalationLevel, { label: string; cls: string }>
 
 export function VisionPanel({ environment, onAnalyze, onConfirmOcr }: VisionPanelProps) {
   const [mode, setMode] = useState<VisionMode>('ultrasound');
+  const [targetPreset, setTargetPreset] = useState<string>(TARGET_PRESETS.ultrasound[0].value);
+  const [contextNotes, setContextNotes] = useState<string>('');
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | Blob | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
@@ -113,12 +135,14 @@ export function VisionPanel({ environment, onAnalyze, onConfirmOcr }: VisionPane
     );
   };
 
-  const runAnalyze = async (fileOrBlob: File | Blob) => {
+  const runAnalyze = async (fileOrBlob: File | Blob, overridePreset?: string) => {
     setAnalyzing(true);
     setError(null);
     setConfirmedMsg(null);
+    const activePreset = overridePreset !== undefined ? overridePreset : targetPreset;
+    const combinedNotes = [activePreset, contextNotes].filter((s) => s.trim().length > 0).join(' ').trim();
     try {
-      const res = await onAnalyze(fileOrBlob, mode, environment);
+      const res = await onAnalyze(fileOrBlob, mode, environment, combinedNotes || undefined);
       setResult(res);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Vision analysis failed');
@@ -184,6 +208,7 @@ export function VisionPanel({ environment, onAnalyze, onConfirmOcr }: VisionPane
               type="button"
               onClick={() => {
                 setMode(m.id);
+                setTargetPreset(TARGET_PRESETS[m.id][0].value);
                 setResult(null);
                 setConfirmedMsg(null);
               }}
@@ -197,6 +222,42 @@ export function VisionPanel({ environment, onAnalyze, onConfirmOcr }: VisionPane
             </button>
           );
         })}
+      </div>
+
+      {/* Target Preset & Optional Clinical Context */}
+      <div className="flex flex-col gap-1.5">
+        <div className="flex flex-wrap gap-1">
+          {TARGET_PRESETS[mode].map((preset) => {
+            const active = targetPreset === preset.value;
+            return (
+              <button
+                key={preset.label}
+                type="button"
+                disabled={analyzing}
+                onClick={() => {
+                  setTargetPreset(preset.value);
+                  if (selectedFile) {
+                    void runAnalyze(selectedFile, preset.value);
+                  }
+                }}
+                className={`px-2 py-0.5 rounded-md text-[10px] font-medium border transition-colors cursor-pointer disabled:opacity-50 ${
+                  active
+                    ? 'border-slate-900 bg-slate-900 text-white'
+                    : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:text-slate-900'
+                }`}
+              >
+                {preset.label}
+              </button>
+            );
+          })}
+        </div>
+        <input
+          type="text"
+          value={contextNotes}
+          onChange={(e) => setContextNotes(e.target.value)}
+          placeholder="Optional clinical context notes..."
+          className="w-full rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-slate-400 focus:bg-white"
+        />
       </div>
 
       {/* Upload + Feed Toggle Bar */}

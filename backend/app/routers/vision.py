@@ -47,12 +47,29 @@ async def api_vision_analyze(
             else:
                 resolved_env = environment
 
+            effective_notes = context_notes
+            if not context_notes.strip() and image.filename:
+                fname_lower = image.filename.lower()
+                organ_keywords = (
+                    "heart",
+                    "cardiac",
+                    "echo",
+                    "kidney",
+                    "renal",
+                    "eye",
+                    "ocular",
+                    "sans",
+                    "onsd",
+                )
+                if any(kw in fname_lower for kw in organ_keywords):
+                    effective_notes = image.filename
+
             return analyze_vision_image(
                 conn=conn,
                 image_bytes=image_bytes,
                 mode=mode,
                 environment=resolved_env,
-                context_notes=context_notes,
+                context_notes=effective_notes,
             )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
