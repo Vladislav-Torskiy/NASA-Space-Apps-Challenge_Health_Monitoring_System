@@ -114,7 +114,9 @@ def test_demo_fault_injection_and_reset(client: TestClient) -> None:
     assert sd.status_code == 200
     sd_data = sd.json()
     assert sd_data["mission"]["active_fault"] == "sleep_deficit"
-    assert any(a["code"] == "circadian_behavioral_drift" for a in sd_data["evaluation"]["trend_alerts"])
+    assert any(
+        a["code"] == "circadian_behavioral_drift" for a in sd_data["evaluation"]["trend_alerts"]
+    )
 
     # 4. Reset baseline -> back to clean Day 24 nominal
     rst = client.post("/api/demo/fault", json={"fault": "reset_baseline"})

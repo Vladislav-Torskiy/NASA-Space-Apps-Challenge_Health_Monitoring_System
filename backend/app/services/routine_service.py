@@ -59,9 +59,7 @@ def get_routine_tasks(conn: sqlite3.Connection) -> list[RoutineTaskItem]:
 
 def unlock_badge_if_needed(conn: sqlite3.Connection, code: str) -> bool:
     """Unlock a badge by code if currently locked. Returns True if newly unlocked."""
-    row = conn.execute(
-        "SELECT unlocked FROM badges WHERE code = ?;", (code,)
-    ).fetchone()
+    row = conn.execute("SELECT unlocked FROM badges WHERE code = ?;", (code,)).fetchone()
     if row is None or int(row["unlocked"]) == 1:
         return False
     conn.execute(
@@ -71,13 +69,9 @@ def unlock_badge_if_needed(conn: sqlite3.Connection, code: str) -> bool:
     return True
 
 
-def complete_routine_task(
-    conn: sqlite3.Connection, task_id: int
-) -> RoutineCompleteResponse:
+def complete_routine_task(conn: sqlite3.Connection, task_id: int) -> RoutineCompleteResponse:
     """Mark a mission routine task completed, update streak, readiness score, and badges."""
-    task_row = conn.execute(
-        "SELECT * FROM routine_tasks WHERE id = ?;", (task_id,)
-    ).fetchone()
+    task_row = conn.execute("SELECT * FROM routine_tasks WHERE id = ?;", (task_id,)).fetchone()
     if task_row is None:
         raise KeyError(f"Routine task {task_id} not found")
 
@@ -118,9 +112,7 @@ def complete_routine_task(
     # Recalculate readiness_score cleanly via risk engine
     evaluate_risk(conn)
 
-    updated_task = conn.execute(
-        "SELECT * FROM routine_tasks WHERE id = ?;", (task_id,)
-    ).fetchone()
+    updated_task = conn.execute("SELECT * FROM routine_tasks WHERE id = ?;", (task_id,)).fetchone()
 
     return RoutineCompleteResponse(
         task=RoutineTaskItem(

@@ -1,7 +1,8 @@
 """Generate synthetic demo images for ASTRA-Med's 3 CV modes."""
 
-from pathlib import Path
 import random
+from pathlib import Path
+
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 OUT_DIR = Path(__file__).resolve().parent.parent / "data" / "demo_samples"
@@ -70,7 +71,13 @@ def generate_device_ocr(path: Path) -> None:
     draw = ImageDraw.Draw(img)
 
     # High-contrast backlit LCD rectangle
-    draw.rounded_rectangle((45, 38, 375, 205), radius=14, fill=(215, 232, 212), outline=(90, 115, 130), width=4)
+    draw.rounded_rectangle(
+        (45, 38, 375, 205),
+        radius=14,
+        fill=(215, 232, 212),
+        outline=(90, 115, 130),
+        width=4,
+    )
 
     font_big = None
     font_small = None
