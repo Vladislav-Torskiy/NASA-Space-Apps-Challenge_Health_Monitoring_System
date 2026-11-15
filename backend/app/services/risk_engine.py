@@ -103,8 +103,13 @@ def compute_trends(records: list[dict[str, Any]]) -> list[TrendAlert]:
     if len(records) < 4:
         return []
 
-    recent_5 = records[-5:]
-    recent_14 = records[-14:]
+    by_day: dict[int, dict[str, Any]] = {}
+    for r in records:
+        by_day[int(r["mission_day"])] = r
+    daily_records = [by_day[day] for day in sorted(by_day)]
+
+    recent_5 = daily_records[-5:]
+    recent_14 = daily_records[-14:]
     alerts: list[TrendAlert] = []
 
     sleep_slope = _linear_slope([float(r["sleep_hours"]) for r in recent_5])
@@ -186,7 +191,7 @@ def evaluate_risk(
     thresholds = get_thresholds_for_env(env)
 
     rows = conn.execute(
-        "SELECT * FROM health_metrics ORDER BY mission_day ASC, id ASC LIMIT 60;"
+        "SELECT * FROM health_metrics ORDER BY mission_day DESC, id DESC LIMIT 60;"
     ).fetchall()
     records = [dict(r) for r in rows]
     latest = records[-1] if records else None

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
 from app.database import db_session
@@ -15,7 +17,6 @@ from app.schemas import (
 from app.services.risk_engine import evaluate_risk
 from app.services.seed_service import ensure_seeded
 from app.services.vision_service import analyze_vision_image
-from typing import cast
 
 router = APIRouter(prefix="/api", tags=["AI / Vision & Risk Engine"])
 
