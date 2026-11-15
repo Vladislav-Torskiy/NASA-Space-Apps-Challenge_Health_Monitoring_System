@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+from collections.abc import Generator
 from pathlib import Path
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 
 
 @pytest.fixture()
-def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> TestClient:
+def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[TestClient, Any, Any]:
     db_file = tmp_path / "test_astra_med.db"
     monkeypatch.setenv("SQLITE_DB_PATH", str(db_file))
     monkeypatch.setenv("GEMINI_API_KEY", "")

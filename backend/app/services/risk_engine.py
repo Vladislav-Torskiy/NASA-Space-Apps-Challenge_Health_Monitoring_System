@@ -191,8 +191,14 @@ def evaluate_risk(
     thresholds = get_thresholds_for_env(env)
 
     rows = conn.execute(
-        "SELECT * FROM health_metrics ORDER BY mission_day DESC, id DESC LIMIT 60;"
-    ).fetchall()
+        """
+        SELECT * FROM (
+            SELECT * FROM health_metrics
+            ORDER BY mission_day DESC, id DESC
+            LIMIT 60
+        ) sub
+        ORDER BY mission_day ASC, id ASC;
+        """,)
     records = [dict(r) for r in rows]
     latest = records[-1] if records else None
 

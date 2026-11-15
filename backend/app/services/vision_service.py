@@ -341,43 +341,25 @@ def _infer_requested_ocr_metric(context_notes: str) -> str | None:
     return None
 
 
-def _extract_ocr_digits_fallback(
-    img: np.ndarray, context_notes: str
-) -> tuple[float | None, str, str, RoiBox]:
-    upscaled = cv2.resize(img, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
-    gray = cv2.cvtColor(upscaled, cv2.COLOR_BGR2GRAY)
+def _detect_lcd_crop(gray: np.ndarray) -> tuple[np.ndarray, RoiBox]:
+    """Locate a high-contrast rectangular LCD display region if present."""
     h, w = gray.shape
     roi_box = RoiBox(x=0.10, y=0.14, w=0.80, h=0.66, label="LCD display region")
 
-    # Using clahe method because astronauts photo 
-    # not always have perfect lighting
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    contrasted = clahe.apply(gray)
-
-    # Make image more smoothed after contrast
-    blurred = cv2.GaussianBlur(contrasted, (5, 5), 0)
-    blurred = cv2.medianBlur(blurred, 3) 
-
-    # Find bright/high-contrast rectangular LCD display if present
-    # Using adaptive binarisation istead of UTSU because it will be real photos, 
-    # OTSU is more effective for screenshots
-    thresh = cv2.adaptiveThreshold(
-        blurred,
-        255,
-        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-        cv2.THRESH_BINARY,
-        blockSize=31,  
-        C=10           
-    )
-    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    
-    crop = thresh
-
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    _, otsu_mask = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    contours, _ = cv2.findContours(otsu_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if contours:
         largest = max(contours, key=cv2.contourArea)
         if cv2.contourArea(largest) > (h * w * 0.15):
             x, y, bw, bh = cv2.boundingRect(largest)
-            crop = gray[y : y + bh, x : x + bw]
+            # Trim 4% inner margin to drop LCD casing borders that confuse OCR
+            pad_x = max(2, int(bw * 0.04))
+            pad_y = max(2, int(bh * 0.04))
+            x1 = min(w - 1, x + pad_x)
+            y1 = min(h - 1, y + pad_y)
+            x2 = max(x1 + 1, x + bw - pad_x)
+            y2 = max(y1 + 1, y + bh - pad_y)
             roi_box = RoiBox(
                 x=round(x / w, 3),
                 y=round(y / h, 3),
@@ -385,43 +367,95 @@ def _extract_ocr_digits_fallback(
                 h=round(bh / h, 3),
                 label="Detected device display",
             )
+            return gray[y1:y2, x1:x2], roi_box
 
-    kernel = np.ones((2, 2), np.uint8)
-    thick_text = cv2.erode(crop, kernel, iterations=1)
+    return gray, roi_box
 
-    inv = cv2.bitwise_not(thick_text)
-    inv = cv2.morphologyEx(inv, cv2.MORPH_OPEN, kernel)
-    inv = cv2.morphologyEx(inv, cv2.MORPH_CLOSE, kernel)
 
-    clean = cv2.bitwise_not(inv)
-    final = cv2.copyMakeBorder(clean, 20, 20, 20, 20, cv2.BORDER_CONSTANT, value=255)
+def _finalize_binary_for_tesseract(binary: np.ndarray) -> np.ndarray:
+    """Ensure dark text on white background with generous padding for Tesseract."""
+    normalized = cv2.bitwise_not(binary) if float(binary.mean()) < 127.0 else binary
+    return cv2.copyMakeBorder(normalized, 24, 24, 24, 24, cv2.BORDER_CONSTANT, value=255)
 
-    raw_text = ""
-    if is_tesseract_available() and pytesseract is not None:
-        try:
-            raw_text = pytesseract.image_to_string(
-                final, lang="eng", config="--psm 6 -c tessedit_char_whitelist=0123456789."
-            )
-        except Exception:
-            raw_text = ""
 
+def _build_ocr_candidates(crop: np.ndarray) -> list[np.ndarray]:
+    """Build clean upscaled binary image variants (OTSU + adaptive) for OCR."""
+    scale = 4 if min(crop.shape[:2]) < 220 else 2
+    upscaled = cv2.resize(crop, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    contrasted = clahe.apply(upscaled)
+
+    # Variant 1: OTSU preserves crisp strokes on small/synthetic LCD text without blurring
+    _, bin_otsu = cv2.threshold(contrasted, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+    # Variant 2: Adaptive threshold handles uneven cabin lighting/glare on real photos
+    light_blur = cv2.GaussianBlur(contrasted, (3, 3), 0)
+    bin_adaptive = cv2.adaptiveThreshold(
+        light_blur,
+        255,
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv2.THRESH_BINARY,
+        blockSize=31,
+        C=10,
+    )
+
+    return [
+        _finalize_binary_for_tesseract(bin_otsu),
+        _finalize_binary_for_tesseract(bin_adaptive),
+    ]
+
+
+def _parse_ocr_number(
+    raw_text: str, requested_metric: str | None
+) -> tuple[float, str, str] | None:
+    """Extract the first reading matching physiological OCR bounds."""
     numbers = re.findall(r"\d+(?:\.\d+)?", raw_text)
-    requested_metric = _infer_requested_ocr_metric(context_notes)
+    if not numbers:
+        return None
 
+    inferred_metric = requested_metric or _infer_requested_ocr_metric(raw_text)
     for token in numbers:
         num = float(token)
-        if requested_metric is not None:
-            min_v, max_v, unit = _OCR_METRIC_RANGES[requested_metric]
+        if inferred_metric is not None:
+            min_v, max_v, unit = _OCR_METRIC_RANGES[inferred_metric]
             if min_v <= num <= max_v:
-                rounded = round(num, 1) if requested_metric == "temperature_c" else round(num, 0)
-                return rounded, requested_metric, unit, roi_box
+                rounded = round(num, 1) if inferred_metric == "temperature_c" else round(num, 0)
+                return rounded, inferred_metric, unit
         else:
             temp_min, temp_max, temp_unit = _OCR_METRIC_RANGES["temperature_c"]
             gluc_min, gluc_max, gluc_unit = _OCR_METRIC_RANGES["blood_glucose_mg_dl"]
             if temp_min <= num <= temp_max:
-                return round(num, 1), "temperature_c", temp_unit, roi_box
+                return round(num, 1), "temperature_c", temp_unit
             if gluc_min <= num <= gluc_max:
-                return round(num, 0), "blood_glucose_mg_dl", gluc_unit, roi_box
+                return round(num, 0), "blood_glucose_mg_dl", gluc_unit
+    return None
+
+
+def _extract_ocr_digits_fallback(
+    img: np.ndarray, context_notes: str
+) -> tuple[float | None, str, str, RoiBox]:
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    crop, roi_box = _detect_lcd_crop(gray)
+    candidates = _build_ocr_candidates(crop)
+    requested_metric = _infer_requested_ocr_metric(context_notes)
+
+    if is_tesseract_available() and pytesseract is not None:
+        # Try sparse/block passes without digit-forcing first so labels like 'GLUCOSE' stay words
+        configs = (
+            "--psm 11",
+            "--psm 6",
+            "--psm 6 -c tessedit_char_whitelist=0123456789.",
+        )
+        for candidate in candidates:
+            for cfg in configs:
+                try:
+                    raw_text = pytesseract.image_to_string(candidate, lang="eng", config=cfg)
+                except Exception:
+                    continue
+                parsed = _parse_ocr_number(raw_text, requested_metric)
+                if parsed is not None:
+                    val, metric_name, unit = parsed
+                    return val, metric_name, unit, roi_box
 
     return None, "", "", roi_box
 
